@@ -1773,28 +1773,29 @@ class File extends FileReference
 		// we're using toLowerCase() for comparisons only.
 		// we'll return the original casing if the file doesn't exist.
 		var segLower = seg.toLowerCase();
-		var nonExactMatch:String = null;
 		for (item in items)
 		{
+			#if (windows || mac)
+			if (item.toLowerCase() == segLower)
+			{
+				// generally, file systems on Windows and macOS are not
+				// case-sensitive, but file systems on Linux are.
+				// technically, Windows and macOS file systems (or, sometimes,
+				// individual directories) can be configured to be
+				// case-sensitive, but that's rare.
+				// ideally, we should detect case-sensitivity, instead of
+				// assuming, but this is good enough for now.
+				return item;
+			}
+			#else
 			if (item == seg)
 			{
-				// found an exact match, including case
-				return seg;
+				// found an exact match for case-sensitive file systems
+				return item;
 			}
-			else if (item.toLowerCase() == segLower)
-			{
-				// found a non-exact match where the casing is different
-				// TODO: allow this only on case-insensitive file systems.
-				nonExactMatch = item;
-				// don't break or return here because there could be an exact
-				// match on case-sensitive file systems.
-			}
+			#end
 		}
 
-		if (nonExactMatch != null)
-		{
-			return nonExactMatch;
-		}
 		return seg;
 	}
 
