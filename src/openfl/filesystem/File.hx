@@ -1709,7 +1709,7 @@ class File extends FileReference
 		trace(temp.nativePath);
 		```
 
-		@returns File A File object referencing the new temporary file;		
+		@returns File A File object referencing the new temporary file;
 
 		@see [Working with files](https://books.openfl.org/openfl-developers-guide/working-with-the-file-system/working-with-files.html)
 	**/
@@ -1740,7 +1740,7 @@ class File extends FileReference
 		}
 		```
 
-		@returns Array An array of File objects, listing the root directories.		
+		@returns Array An array of File objects, listing the root directories.
 	**/
 	public static function getRootDirectories():Array<File>
 	{
@@ -1757,21 +1757,44 @@ class File extends FileReference
 
 	@:noCompletion private function __canonicalize(cpath:String, seg:String):String
 	{
-		seg = seg.toLowerCase();
-		var items:Array<String> = FileSystem.readDirectory(Path.directory(cpath));
+		var items:Array<String> = null;
+		try
+		{
+			items = FileSystem.readDirectory(Path.directory(cpath));
+		}
+		catch (e:Dynamic) {}
 		if (items == null)
 		{
-			return "";
+			// if the directory doesn't exist, or if something goes wrong, like
+			// we don't have permission to read it, use the original name.
+			return seg;
 		}
+
+		// we're using toLowerCase() for comparisons only.
+		// we'll return the original casing if the file doesn't exist.
+		var segLower = seg.toLowerCase();
+		var nonExactMatch:String = null;
 		for (item in items)
 		{
-			if (item.toLowerCase() == seg)
+			if (item == seg)
 			{
-				seg = item;
-				break;
+				// found an exact match, including case
+				return seg;
+			}
+			else if (item.toLowerCase() == segLower)
+			{
+				// found a non-exact match where the casing is different
+				// TODO: allow this only on case-insensitive file systems.
+				nonExactMatch = item;
+				// don't break or return here because there could be an exact
+				// match on case-sensitive file systems.
 			}
 		}
 
+		if (nonExactMatch != null)
+		{
+			return nonExactMatch;
+		}
 		return seg;
 	}
 
