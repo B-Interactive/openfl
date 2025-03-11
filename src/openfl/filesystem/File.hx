@@ -1775,7 +1775,7 @@ class File extends FileReference
 		var segLower = seg.toLowerCase();
 		for (item in items)
 		{
-			#if (windows || mac)
+			#if (windows || mac || ios)
 			if (item.toLowerCase() == segLower)
 			{
 				// generally, file systems on Windows and macOS are not
