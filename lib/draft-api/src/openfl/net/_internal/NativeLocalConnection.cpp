@@ -47,36 +47,37 @@ extern "C" bool native_accept(HANDLE hPipe)
     return false;
 }
 
-extern "C" bool native_read(HANDLE hPipe, unsigned char* buffer, int bufferSize)
+extern "C" int native_read(HANDLE hPipe, unsigned char* buffer, int bufferSize)
 {
 	if (hPipe == NULL) return false;
 
 	DWORD bytesRead;
 	if (!ReadFile(hPipe, buffer, bufferSize, &bytesRead, NULL))
 	{
-		std::cerr << "ReadFile failed. Error: " << GetLastError() << "\n";
-		return false;
+		int errCode = GetLastError();
+		
+		if(errCode == 234){
+			return 0;
+		}
+		
+		return errCode;
 	}
 	
-	// Null terminate for safety?
-	buffer[bytesRead] = '\0'; 
-	//std::cout << "Received from client: " << buffer << std::endl;
-	return true;
+	return 0;
 }
 
-extern "C" bool native_write(void* hPipe, const char* message)
+extern "C" bool native_write(void* hPipe, const unsigned char* buffer, int bufferSize)
 {
-	if (hPipe == NULL) return false;
+	if (hPipe == NULL || buffer == NULL || bufferSize <= 0) return false;
 
 	DWORD bytesWritten;
-	if (!WriteFile((HANDLE)hPipe, message, strlen(message) + 1, &bytesWritten, NULL))
+	if (!WriteFile((HANDLE)hPipe, buffer, bufferSize, &bytesWritten, NULL))
 	{
-		//std::cerr << "WriteFile failed. Error: " << GetLastError() << "\n";
+		// std::cerr << "WriteFile failed. Error: " << GetLastError() << "\n";
 		return false;
 	}
 
-	//std::cout << "Sent response to client: " << message << std::endl;
-	return true;
+	return bytesWritten == bufferSize;
 }
 
 // Close the named pipe
@@ -84,7 +85,7 @@ extern "C" void native_close(void* hPipe)
 {
 	if (hPipe == NULL) return;
 
-	std::cout << "Closing named pipe...\n";
+	//std::cout << "Closing named pipe...\n";
 	CloseHandle((HANDLE)hPipe);
 }
 
@@ -92,7 +93,7 @@ extern "C" HANDLE native_connect(const char* pipeName)
 {
     std::string fullPipeName = std::string("\\\\.\\pipe\\") + pipeName;
 
-    std::cout << "Attempting to connect to pipe: " << fullPipeName << "...\n";
+    //std::cout << "Attempting to connect to pipe: " << fullPipeName << "...\n";
 
     HANDLE hPipe;
 	// Number of retry attempts
@@ -112,24 +113,24 @@ extern "C" HANDLE native_connect(const char* pipeName)
 
         if (hPipe != INVALID_HANDLE_VALUE)
         {
-            std::cout << "Successfully connected to named pipe!\n";
+            //std::cout << "Successfully connected to named pipe!\n";
             return hPipe;
         }
 
         DWORD error = GetLastError();
-        std::cerr << "Failed to connect to named pipe. Error: " << error << "\n";
+        //std::cerr << "Failed to connect to named pipe. Error: " << error << "\n";
 
         if (error == ERROR_PIPE_BUSY)
         {
-            std::cout << "Pipe is busy, waiting...\n";
+            //std::cout << "Pipe is busy, waiting...\n";
             if (!WaitNamedPipeA(fullPipeName.c_str(), 500))
             {
-                std::cerr << "WaitNamedPipe failed. Error: " << GetLastError() << "\n";
+                //std::cerr << "WaitNamedPipe failed. Error: " << GetLastError() << "\n";
             }
         }
         else if (error == ERROR_FILE_NOT_FOUND)
         {
-            std::cerr << "Named pipe does not exist. Make sure the server is running.\n";
+            //std::cerr << "Named pipe does not exist. Make sure the server is running.\n";
 			// Wait a bit before retrying. Should this be more or less?
             Sleep(500); 
         }

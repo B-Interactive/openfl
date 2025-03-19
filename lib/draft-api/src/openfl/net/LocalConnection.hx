@@ -1,10 +1,11 @@
 package openfl.net;
+
+
+#if !(flash || air)
 import haxe.Timer;
 import openfl.errors.ArgumentError;
 import openfl.events.StatusEvent;
 import openfl.utils.Object;
-
-#if !(flash || air)
 import haxe.Unserializer;
 import haxe.Serializer;
 import cpp.Pointer;
@@ -44,6 +45,7 @@ class LocalConnection extends EventDispatcher{
 	@:noCompletion private var __connected:Bool = false;
 
 	@:noCompletion private static inline var TIME_OUT:Int = 45000;
+	@:noCompletion private static inline var BUFFER_SIZE:Int = 4096;
     
     public function new() {
         super();
@@ -56,9 +58,11 @@ class LocalConnection extends EventDispatcher{
 	public function close():Void
 	{
 
-		__close(__inboundPipe);
-		// Should we use a deque to prevent race condition?
-		__inboundPipe = null;
+		if (__inboundPipe != null)
+		{
+			__close(__inboundPipe);
+			__inboundPipe = null;
+		}
 		__connected = false;
 	}
 
@@ -71,7 +75,8 @@ class LocalConnection extends EventDispatcher{
 
 			//trace("Error setting up named pipe: " + connectionName);
 			throw new ArgumentError("Connection name is already in use or invalid");
-		} else {		
+		}
+		else {
 			__connected = true;
 		}
 	}
@@ -82,7 +87,16 @@ class LocalConnection extends EventDispatcher{
 		var status:Bool = false;
 
 		__serializer.serialize(arguments);
-		var message:String = '$methodName::::${__serializer.toString()}';
+		var methodBytes:Bytes = Bytes.ofString(methodName);
+		var serializationBytes:Bytes = Bytes.ofString(__serializer.toString());
+
+		var messageBuffer:BytesBuffer = new BytesBuffer();
+		messageBuffer.addInt32(methodBytes.length);
+		messageBuffer.addBytes(methodBytes, 0, methodBytes.length);
+		messageBuffer.addInt32(serializationBytes.length);
+		messageBuffer.addBytes(serializationBytes, 0, serializationBytes.length);
+
+		var messageBytes:Bytes = messageBuffer.getBytes();
 		//trace("Attempt to send: " + message);
 
 		// Connects to the outbound pipe
@@ -95,7 +109,7 @@ class LocalConnection extends EventDispatcher{
 		// Send the message
 		if (__outboundPipe != null)
 		{
-			status = __write(__outboundPipe, message);
+			status = __write(__outboundPipe, messageBytes.getData(), messageBytes.length);
 		}
 
 		//trace("Send message status is: " + (status ? "Success" : "Failure"));
@@ -130,7 +144,7 @@ class LocalConnection extends EventDispatcher{
         #end
     }
 
-    /** Starts the timeout check (but does not hold a strong reference) */
+   /** Starts the timeout check (but does not hold a strong reference) */
 	@:noCompletion private function __startTimeoutCheck():Void
 	{
 		if (__outboundTimeout != null) return; // Prevent multiple timers
@@ -165,10 +179,10 @@ class LocalConnection extends EventDispatcher{
 		__outboundTimeout = Timer.delay(() -> __checkTimeout(), 5000);
 	}
     
-    /**writes data to a named pipe */
-	@:noCompletion private static function __write(pipe:HANDLE, data:String):Bool
+   /** Writes data to a named pipe */
+	@:noCompletion private static function __write(pipe:HANDLE, data:BytesData, size:Int):Bool
 	{
-		return NativeLocalConnection.__write(pipe, data);
+		return NativeLocalConnection.__write(pipe, Pointer.ofArray(data), size);
 	}
 
 	/** Connects to an outbound pipe */
@@ -195,7 +209,7 @@ class LocalConnection extends EventDispatcher{
 	}
 
 	/** Reads from the named pipe */
-	@:noCompletion private static function __read(pipe:HANDLE, buffer:BytesData, size:Int):Bool
+	@:noCompletion private static function __read(pipe:HANDLE, buffer:BytesData, size:Int):Int
 	{
 		return NativeLocalConnection.__read(pipe, Pointer.ofArray(buffer), size);
 	}
@@ -219,9 +233,19 @@ class LocalConnection extends EventDispatcher{
 		var handleQueue:Deque<HANDLE> = new Deque();
 
 		__worker.doWork.add((name:String)->{
-			var handle:HANDLE = __createInboundPipe(name);
-			handleQueue.add(handle);
-			__runLocalConnection(name);
+			var handle:HANDLE = null;
+			try{
+				handle = __createInboundPipe(name);
+				handleQueue.add(handle);
+			}
+			catch (e:Dynamic)
+			{
+				handleQueue.add(null);
+			}
+			if (handle != null)
+			{
+				__runLocalConnection(name);
+			}
 		});
 
 		__worker.run(connectionName);
@@ -236,30 +260,52 @@ class LocalConnection extends EventDispatcher{
 		return false;
 	}
 
-	@:noCompletion private function __onData(received:String):Void
+	@:noCompletion private #if !debug inline #end function __onData(received:Bytes):Void
 	{
 		if (client == null)
 		{
 			return;
 		}
 
-		var arr:Array<String> = received.split("::::");
-		var method:String = arr[0];
-		var args:Array<Dynamic> = Unserializer.run(arr[1]);
-
+		var offset:Int = 0;
 		try{
+			var methodLength:Int = received.getInt32(0);
+			//trace(methodLength);
+			offset += 4;
+
+			var method:String = received.getString(offset, methodLength);
+			offset += methodLength;
+			//trace(method);
+
+			var serializationLength:Int = received.getInt32(offset);
+			offset += 4;
+			//trace(serializationLength);
+
+			var serialization:String = received.getString(offset, serializationLength);
+			//trace(serialization);
+
+			var args:Array<Dynamic> = Unserializer.run(serialization);
+
+			Reflect.callMethod(client, client[method], args);
+		}
+		catch (e:Dynamic)
+		{
+			throw "error parsing LocalConnection message";
+		}
+
+		/*try{
 			Reflect.callMethod(client, client[method], args);
 		}
 		catch (e:Dynamic)
 		{
 			// De nada
-		}
+		}*/
 	}
 
 	/** Listens for incoming messages in a background thread */
 	@:noCompletion private function __runLocalConnection(connectionName:String):Void
 	{
-		var buffer:Bytes = Bytes.alloc(4096);
+		var buffer:Bytes = Bytes.alloc(BUFFER_SIZE);
 
 		while (true)
 		{
@@ -293,16 +339,30 @@ class LocalConnection extends EventDispatcher{
 				}
 				else if (available > 0)
 				{
-					// Read theavailable data
-					if (__read(pipe, buffer.getData(), 4096))
-					{
-						var received = buffer.toString();
-						//trace("Received: " + received);
-						__onData(received);
+					if (available > BUFFER_SIZE){
+						var largeMessageBuffer:BytesBuffer = new BytesBuffer();
+						var bytesRemaining:Int = available;
+						while (bytesRemaining > 0){
+							if (__read(pipe, buffer.getData(), BUFFER_SIZE) == 0)
+							{
+								var length:Int = bytesRemaining > BUFFER_SIZE ? BUFFER_SIZE : bytesRemaining;	
+								bytesRemaining -= length;
+								largeMessageBuffer.addBytes(buffer, 0, length); 
+							}							
+						}
+						__onData(largeMessageBuffer.getBytes());
+					}else {					
+						// Read theavailable data
+						if (__read(pipe, buffer.getData(), BUFFER_SIZE) == 0)
+						{
+							var received:Bytes = buffer;
+							//trace("Received: " + received);
+							__onData(received);
+						}
 					}
 				}
-                // Moves to the previous index
-				i--; 
+
+				i--; // Moves to the previous index
 			}
 
 			//Application seems to lock up without sleep
