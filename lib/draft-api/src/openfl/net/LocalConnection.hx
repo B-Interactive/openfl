@@ -21,6 +21,7 @@ import openfl.events.EventDispatcher;
 /**
  * LocalConnection - Implements IPC using Named Pipes
  */
+@:access(haxe.Serializer)
 @:access(openfl.net._internal.NativeLocalConnection)
 class LocalConnection extends EventDispatcher{
 
@@ -84,6 +85,7 @@ class LocalConnection extends EventDispatcher{
     /** Sends a message to another connection */
 	public function send(connectionName:String, methodName:String, ...arguments):Void
 	{
+		__resetSeralizer();
 		var status:Bool = false;
 
 		__serializer.serialize(arguments);
@@ -144,7 +146,15 @@ class LocalConnection extends EventDispatcher{
         #end
     }
 
-   /** Starts the timeout check (but does not hold a strong reference) */
+	 /** Resets our serializer internally */
+	@:noCompeltion private inline function __resetSeralizer():Void{
+		__serializer.buf = new StringBuf();
+		__serializer.shash.clear();
+		__serializer.cache = [];
+		__serializer.scount = 0;
+	}
+
+  	 /** Starts the timeout check (but does not hold a strong reference) */
 	@:noCompletion private function __startTimeoutCheck():Void
 	{
 		if (__outboundTimeout != null) return; // Prevent multiple timers
