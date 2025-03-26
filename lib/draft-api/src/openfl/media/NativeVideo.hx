@@ -1,6 +1,7 @@
 package openfl.media;
-import openfl.media._internal.GLUtil;
+
 #if (cpp && windows)
+	import openfl.media._internal.GLUtil;
 	import cpp.Pointer;
 	import haxe.io.Bytes;
 	import haxe.io.BytesData;
@@ -35,6 +36,8 @@ class NativeVideo extends Bitmap
 	@:noCompletion private var __isHardware:Bool;
 	@:noCompletion private var __textureWidth:Int;
 	@:noCompletion private var __textureHeight:Int;
+	@:noCompletion private var __videoWidth:Int;
+	@:noCompletion private var __videoHeight:Int;	
 	@:noCompletion private var __textureY:RectangleTexture;
 	@:noCompletion private var __textureUV:RectangleTexture;
 	@:noCompletion private var __videoTexture:RectangleTexture;
@@ -59,23 +62,23 @@ class NativeVideo extends Bitmap
 		__isHardware = Lib.current.stage.window.context.type != "cairo";
 		__processFrames = __isHardware ? __processGLFrames : __processSoftwareFrames;
 
-		super(new BitmapData(width, height), null, smoothing);
+		super(null, null, smoothing);
 		
-		trace("Init");
+		__textureWidth = width;
+		__textureHeight = height;
 	}
 
 	public function load(path:String):Void
 	{
-		__textureWidth = __videoGetWidth(path);
-		__textureHeight = __videoGetHeight(path);
-
-		if (__textureWidth == -1 || __textureHeight == -1)
+		__videoWidth = __videoGetWidth(path);
+		__videoHeight = __videoGetHeight(path);
+		
+		var bmd:BitmapData = new BitmapData(__videoWidth, __videoHeight, false, 0x0);
+		this.bitmapData = bmd;
+		if (__videoWidth == -1 || __videoHeight == -1)
 		{
 			throw "Video not supported.";
-		}
-		
-		var bmd:BitmapData = new BitmapData(__textureWidth, __textureHeight, false, 0x0);
-		this.__bitmapData = bmd;
+		}		
 
 		if (__isHardware)
 		{
@@ -105,7 +108,7 @@ class NativeVideo extends Bitmap
 		}
 		else {
 			__setupBuffers();
-			__frameRect = new Rectangle(0, 0, __textureWidth, __textureHeight);
+			__frameRect = new Rectangle(0, 0, __videoWidth, __videoHeight);
 			if (!__videoSoftwareLoad(path, __videoBuffer.getData(), __videoBuffer.length))
 			{
 				throw "Video not supported.";
@@ -116,6 +119,7 @@ class NativeVideo extends Bitmap
 	public function unload():Void
 	{
 		__unloadBuffers();
+		__videoShutdown();
 
 	}
 
@@ -129,7 +133,7 @@ class NativeVideo extends Bitmap
 		__isPlaying = false;
 	}
 
-	@:noCompletion override private function __enterFrame(deltaTime:Float):Void
+	@:noCompletion override private function __enterFrame(deltaTime:Int):Void
 	{
 		super.__enterFrame(deltaTime);
 
@@ -141,7 +145,10 @@ class NativeVideo extends Bitmap
 
 	@:noCompletion private function __processGLFrames():Void
 	{
-		__videoGLUpdateFrame();
+		if (!__videoGLUpdateFrame()){
+			stop();
+		}
+		
 		__context.setRenderToTexture(__videoTexture, true);
 		__context.setProgram(__program);
 		__context.setTextureAt(0, __textureY);
@@ -161,11 +168,13 @@ class NativeVideo extends Bitmap
 	{
 		if (!__videoSoftwareUpdateFrame())
 		{
-			throw "Error processing video frames.";
+			stop();
 		}
 
-		nv12ToRGBA(__videoBuffer, __bitmapBuffer, __textureWidth, __textureHeight);
+		nv12ToRGBA(__videoBuffer, __bitmapBuffer, __videoWidth, __videoHeight);
 		this.bitmapData.setPixels(__frameRect, __bitmapBuffer);
+		this.width = __textureWidth;
+		this.height = __textureHeight;
 	}
 
 	@:noCompletion private function __unloadBuffers():Void
@@ -176,7 +185,7 @@ class NativeVideo extends Bitmap
 
 	@:noCompletion private function __setupBuffers():Void
 	{
-		var product:Int = __textureWidth * __textureHeight;
+		var product:Int = __videoWidth * __videoHeight;
 
 		var __bitmapBufferLength:Int = product * 4;
 		__bitmapBuffer = Bytes.alloc(__bitmapBufferLength);
@@ -197,7 +206,7 @@ class NativeVideo extends Bitmap
 		__positions = __context.createVertexBuffer(4, 2);
 		__positions.uploadFromTypedArray(posData, 0);
 
-// UVs (0 to 1)
+		// UVs (0 to 1)
 		var uvData = new Float32Array([
 			0, 0,
 			1, 0,
@@ -207,7 +216,7 @@ class NativeVideo extends Bitmap
 		__uvs = __context.createVertexBuffer(4, 2);
 		__uvs.uploadFromTypedArray(uvData, 0);
 
-// Indices (2 triangles)
+		// Indices (2 triangles)
 		__indices = __context.createIndexBuffer(6);
 		__indices.uploadFromTypedArray(new UInt16Array([0, 1, 2, 2, 1, 3]), 0);
 	}
@@ -289,7 +298,7 @@ class NativeVideo extends Bitmap
 		NativeVideoBackend.__videoShutdown();
 	}
 
-	static function nv12ToRGBA(nv12:Bytes, rgba:Bytes, width:Int, height:Int)
+	@:noCompletion private static function nv12ToRGBA(nv12:Bytes, rgba:Bytes, width:Int, height:Int)
 	{
 		var frameSize = width * height;
 		var uvOffset = frameSize + width * 2; // skip first UV row
@@ -326,7 +335,7 @@ class NativeVideo extends Bitmap
 		}
 	}
 
-	inline static function clamp(v:Int):Int
+	@:noCompletion private inline static function clamp(v:Int):Int
 	{
 		return v < 0 ? 0 : (v > 255 ? 255 : v);
 	}
@@ -334,6 +343,7 @@ class NativeVideo extends Bitmap
 	#else
 	public function new(Width:Int, height:Int, smoothing:Bool = false)
 	{
+		super();
 		Lib.notImplemented();
 	}
 	#end
