@@ -1,0 +1,340 @@
+package openfl.media;
+import openfl.media._internal.GLUtil;
+#if (cpp && windows)
+	import cpp.Pointer;
+	import haxe.io.Bytes;
+	import haxe.io.BytesData;
+	import lime.utils.Float32Array;
+	import lime.utils.UInt16Array;
+	import lime.utils.UInt8Array;
+	import openfl.Lib;
+	import openfl.display.Bitmap;
+	import openfl.display.BitmapData;
+	import openfl.display3D.Context3D;
+	import openfl.display3D.IndexBuffer3D;
+	import openfl.display3D.Program3D;
+	import openfl.display3D.VertexBuffer3D;
+	import openfl.display3D.textures.RectangleTexture;
+	import openfl.events.Event;
+	import openfl.geom.Rectangle;
+	import openfl.media._internal.NativeVideoBackend;
+#end
+
+/**
+ * ...
+ * @author Christopher Speciale
+ */
+
+@:access(openfl.media._internal.NativeVideoBackend)
+class NativeVideo extends Bitmap
+{
+	public static inline var isSupported:Bool = #if (cpp && windows) true #else false #end;
+
+	#if (cpp && windows)
+	@:noCompletion private var __isPlaying:Bool;
+	@:noCompletion private var __isHardware:Bool;
+	@:noCompletion private var __textureWidth:Int;
+	@:noCompletion private var __textureHeight:Int;
+	@:noCompletion private var __textureY:RectangleTexture;
+	@:noCompletion private var __textureUV:RectangleTexture;
+	@:noCompletion private var __videoTexture:RectangleTexture;
+	@:noCompletion private var __context:Context3D;
+	@:noCompletion private var __videoBuffer:Bytes;
+	@:noCompletion private var __bitmapBuffer:Bytes;
+	@:noCompletion private var __frameRect:Rectangle;
+	@:noCompletion private var __positions:VertexBuffer3D;
+	@:noCompletion private var __uvs:VertexBuffer3D;
+	@:noCompletion private var __indices:IndexBuffer3D;
+	@:noCompletion private var __program:Program3D;
+	@:noCompletion private var __processFrames:Void->Void;
+
+	public function new(width:Int, height:Int, smoothing:Bool = false)
+	{
+		if (!__videoInit())
+		{
+			throw "Could not initialize Native Video Backend";
+		}
+
+		__isPlaying = false;
+		__isHardware = Lib.current.stage.window.context.type != "cairo";
+		__processFrames = __isHardware ? __processGLFrames : __processSoftwareFrames;
+
+		super(new BitmapData(width, height), null, smoothing);
+		
+		trace("Init");
+	}
+
+	public function load(path:String):Void
+	{
+		__textureWidth = __videoGetWidth(path);
+		__textureHeight = __videoGetHeight(path);
+
+		if (__textureWidth == -1 || __textureHeight == -1)
+		{
+			throw "Video not supported.";
+		}
+		
+		var bmd:BitmapData = new BitmapData(__textureWidth, __textureHeight, false, 0x0);
+		this.__bitmapData = bmd;
+
+		if (__isHardware)
+		{
+			if (!__videoGLLoad(path))
+			{
+				throw "Video not supported.";
+			}
+			
+			__context = Lib.current.stage.context3D;
+			__videoTexture = __context.createRectangleTexture(__textureWidth, __textureHeight, BGRA, true);
+			__textureY = __context.createRectangleTexture(__textureWidth, __textureHeight, null, false);
+			__textureUV = __context.createRectangleTexture(Std.int(__textureWidth * 0.5), Std.int(__textureWidth * 0.5), null, false);
+
+			@:privateAccess
+			__textureY.__textureID = NativeVideoBackend.__getTextureIDY();
+			@:privateAccess
+			__textureUV.__textureID = NativeVideoBackend.__getTextureIDUV();
+
+			@:privateAccess
+			__textureY.__internalFormat = __textureY.__format = GLUtil.RED(__context);
+			@:privateAccess
+			__textureUV.__internalFormat = __textureUV.__format = GLUtil.RG(__context);
+
+			__setupData();
+			__createProgram();
+			this.bitmapData.disposeImage();
+		}
+		else {
+			__setupBuffers();
+			__frameRect = new Rectangle(0, 0, __textureWidth, __textureHeight);
+			if (!__videoSoftwareLoad(path, __videoBuffer.getData(), __videoBuffer.length))
+			{
+				throw "Video not supported.";
+			}
+		}
+	}
+
+	public function unload():Void
+	{
+		__unloadBuffers();
+
+	}
+
+	public function play():Void
+	{
+		__isPlaying = true;
+	}
+
+	public function stop():Void
+	{
+		__isPlaying = false;
+	}
+
+	@:noCompletion override private function __enterFrame(deltaTime:Float):Void
+	{
+		super.__enterFrame(deltaTime);
+
+		if (__isPlaying)
+		{
+			__processFrames();
+		}
+	}
+
+	@:noCompletion private function __processGLFrames():Void
+	{
+		__videoGLUpdateFrame();
+		__context.setRenderToTexture(__videoTexture, true);
+		__context.setProgram(__program);
+		__context.setTextureAt(0, __textureY);
+		__context.setTextureAt(1, __textureUV);
+
+		__context.setVertexBufferAt(0, __positions, 0, FLOAT_2); // aPosition
+		__context.setVertexBufferAt(1, __uvs, 0, FLOAT_2);       // aTexCoord
+		__context.drawTriangles(__indices);
+		__context.setRenderToBackBuffer();
+		
+		@:privateAccess
+		this.bitmapData.__texture = __videoTexture;
+		this.bitmapData = this.bitmapData;
+	}
+
+	@:noCompletion private function __processSoftwareFrames():Void
+	{
+		if (!__videoSoftwareUpdateFrame())
+		{
+			throw "Error processing video frames.";
+		}
+
+		nv12ToRGBA(__videoBuffer, __bitmapBuffer, __textureWidth, __textureHeight);
+		this.bitmapData.setPixels(__frameRect, __bitmapBuffer);
+	}
+
+	@:noCompletion private function __unloadBuffers():Void
+	{
+		__bitmapBuffer = null;
+		__videoBuffer = null;
+	}
+
+	@:noCompletion private function __setupBuffers():Void
+	{
+		var product:Int = __textureWidth * __textureHeight;
+
+		var __bitmapBufferLength:Int = product * 4;
+		__bitmapBuffer = Bytes.alloc(__bitmapBufferLength);
+
+		var videoBufferLength:Int = Std.int(product * 1.5);
+		__videoBuffer = Bytes.alloc(videoBufferLength);
+	}
+
+	@:noCompletion private function __setupData():Void
+	{
+		// Vertex positions (-1 to 1)
+		var posData = new Float32Array([
+			-1, -1,
+			1, -1,
+			-1,  1,
+			1,  1
+		]);
+		__positions = __context.createVertexBuffer(4, 2);
+		__positions.uploadFromTypedArray(posData, 0);
+
+// UVs (0 to 1)
+		var uvData = new Float32Array([
+			0, 0,
+			1, 0,
+			0, 1,
+			1, 1
+		]);
+		__uvs = __context.createVertexBuffer(4, 2);
+		__uvs.uploadFromTypedArray(uvData, 0);
+
+// Indices (2 triangles)
+		__indices = __context.createIndexBuffer(6);
+		__indices.uploadFromTypedArray(new UInt16Array([0, 1, 2, 2, 1, 3]), 0);
+	}
+
+	@:noCompletion private function __createProgram():Void
+	{
+		var vertexShader:String = "attribute vec2 aPosition;
+		attribute vec2 aTexCoord;
+		varying vec2 vTexCoord;
+
+		void main() {
+		vTexCoord = aTexCoord;
+		gl_Position = vec4(aPosition, 0.0, 1.0);
+	}";
+
+		var fragmentShader:String = "precision mediump float;
+
+		uniform sampler2D u_tex0;
+		uniform sampler2D u_tex1;
+
+		varying vec2 vTexCoord;
+
+		void main() {
+		float y = texture2D(u_tex0, vTexCoord).r;
+
+		vec2 uv = texture2D(u_tex1, vTexCoord).rg;
+		float u = uv.r - 0.5;
+		float v = uv.g - 0.5;
+
+		float r = y + 1.402 * v;
+		float g = y - 0.344136 * u - 0.714136 * v;
+		float b = y + 1.772 * u;
+
+		gl_FragColor = vec4(r, g, b, 1.0);
+	}";
+
+		__program = __context.createProgram(GLSL);
+		__program.uploadSources(vertexShader, fragmentShader);
+	}
+
+	@:noCompletion private static function __videoInit():Bool
+	{
+		return NativeVideoBackend.__videoInit();
+	}
+
+	@:noCompletion private static function __videoSoftwareLoad(path:String, buffer:BytesData, length:Int):Bool
+	{
+		return NativeVideoBackend.__videoSoftwareLoad(path, Pointer.ofArray(buffer), length);
+	}
+
+	@:noCompletion private static function __videoSoftwareUpdateFrame():Bool
+	{
+		return NativeVideoBackend.__videoSoftwareUpdateFrame();
+	}
+
+	@:noCompletion private static function __videoGLLoad(path:String):Bool
+	{
+		return NativeVideoBackend.__videoGLLoad(path);
+
+	}
+
+	@:noCompletion private static function __videoGLUpdateFrame():Bool
+	{
+		return NativeVideoBackend.__videoGLUpdateFrame();
+	}
+
+	@:noCompletion private static function __videoGetWidth(path:String):Int
+	{
+		return NativeVideoBackend.__videoGetWidth(path);
+	}
+
+	@:noCompletion private static function __videoGetHeight(path:String):Int
+	{
+		return NativeVideoBackend.__videoGetHeight(path);
+	}
+
+	@:noCompletion private static function __videoShutdown():Void
+	{
+		NativeVideoBackend.__videoShutdown();
+	}
+
+	static function nv12ToRGBA(nv12:Bytes, rgba:Bytes, width:Int, height:Int)
+	{
+		var frameSize = width * height;
+		var uvOffset = frameSize + width * 2; // skip first UV row
+		var maxUVRows = ((height - 4) >> 1);  // only read UV rows for 270 Y lines
+
+		for (y in 0...height)
+		{
+			var yRow = y * width;
+			var uvRowIndex = (y >> 1);
+			if (uvRowIndex >= maxUVRows) continue; // prevent UV overflow
+
+			var uvRow = uvOffset + uvRowIndex * width;
+
+			for (x in 0...width)
+			{
+				var Y = nv12.get(yRow + x) & 0xFF;
+				var U = nv12.get(uvRow + (x & ~1)) & 0xFF;
+				var V = nv12.get(uvRow + (x & ~1) + 1) & 0xFF;
+
+				var C = Y - 16;
+				var D = U - 128;
+				var E = V - 128;
+
+				var R = (298 * C + 409 * E + 128) >> 8;
+				var G = (298 * C - 100 * D - 208 * E + 128) >> 8;
+				var B = (298 * C + 516 * D + 128) >> 8;
+
+				var rgbaIndex = 4 * (y * width + x);
+				rgba.set(rgbaIndex, clamp(B));
+				rgba.set(rgbaIndex + 1, clamp(G));
+				rgba.set(rgbaIndex + 2, clamp(R));
+				rgba.set(rgbaIndex + 3, 255);
+			}
+		}
+	}
+
+	inline static function clamp(v:Int):Int
+	{
+		return v < 0 ? 0 : (v > 255 ? 255 : v);
+	}
+
+	#else
+	public function new(Width:Int, height:Int, smoothing:Bool = false)
+	{
+		Lib.notImplemented();
+	}
+	#end
+}
