@@ -22,13 +22,19 @@ package openfl.media;
 #end
 
 /**
- * ...
+ * NativeVideo is a hardware-accelerated or software-rendered video playback component for OpenFL.
+ * 
+ * It supports decoding and rendering NV12 video frames using a native backend (Media Foundation on Windows).
+ * This class allows rendering video as a `Bitmap`, supporting both GPU and software paths depending on context.
+ *
+ * **Note:** This is a **BETA API** and subject to change.
+ *
  * @author Christopher Speciale
  */
-
 @:access(openfl.media._internal.NativeVideoBackend)
 class NativeVideo extends Bitmap
 {
+	/** Whether NativeVideo is supported on the current platform. */
 	public static inline var isSupported:Bool = #if (cpp && windows) true #else false #end;
 
 	#if (cpp && windows)
@@ -51,6 +57,14 @@ class NativeVideo extends Bitmap
 	@:noCompletion private var __program:Program3D;
 	@:noCompletion private var __processFrames:Void->Void;
 
+	/**
+	 * Creates a new NativeVideo instance.
+	 *
+	 * @param width The texture width to use for rendering.
+	 * @param height The texture height to use for rendering.
+	 * @param smoothing Whether to apply smoothing to the output bitmap.
+	 * @throws An error if the video backend cannot be initialized.
+	 */
 	public function new(width:Int, height:Int, smoothing:Bool = false)
 	{
 		if (!__videoInit())
@@ -68,6 +82,12 @@ class NativeVideo extends Bitmap
 		__textureHeight = height;
 	}
 
+	/**
+	 * Loads a video from the specified path.
+	 *
+	 * @param path The file path to the video.
+	 * @throws An error if the video cannot be loaded or is unsupported.
+	 */
 	public function load(path:String):Void
 	{
 		__videoWidth = __videoGetWidth(path);
@@ -115,7 +135,10 @@ class NativeVideo extends Bitmap
 			}
 		}
 	}
-
+	
+	/**
+	 * Unloads the current video and releases resources.
+	 */
 	public function unload():Void
 	{
 		__unloadBuffers();
@@ -123,11 +146,17 @@ class NativeVideo extends Bitmap
 
 	}
 
+	/**
+	 * Starts video playback.
+	 */
 	public function play():Void
 	{
 		__isPlaying = true;
 	}
 
+	/**
+	 * Stops video playback.
+	 */
 	public function stop():Void
 	{
 		__isPlaying = false;
