@@ -1,24 +1,24 @@
 package openfl.media;
 
 #if (cpp && windows)
-	import openfl.media._internal.GLUtil;
-	import cpp.Pointer;
-	import haxe.io.Bytes;
-	import haxe.io.BytesData;
-	import lime.utils.Float32Array;
-	import lime.utils.UInt16Array;
-	import lime.utils.UInt8Array;
-	import openfl.Lib;
-	import openfl.display.Bitmap;
-	import openfl.display.BitmapData;
-	import openfl.display3D.Context3D;
-	import openfl.display3D.IndexBuffer3D;
-	import openfl.display3D.Program3D;
-	import openfl.display3D.VertexBuffer3D;
-	import openfl.display3D.textures.RectangleTexture;
-	import openfl.events.Event;
-	import openfl.geom.Rectangle;
-	import openfl.media._internal.NativeVideoBackend;
+import openfl.media._internal.GLUtil;
+import cpp.Pointer;
+import haxe.io.Bytes;
+import haxe.io.BytesData;
+import lime.utils.Float32Array;
+import lime.utils.UInt16Array;
+import lime.utils.UInt8Array;
+import openfl.Lib;
+import openfl.display.Bitmap;
+import openfl.display.BitmapData;
+import openfl.display3D.Context3D;
+import openfl.display3D.IndexBuffer3D;
+import openfl.display3D.Program3D;
+import openfl.display3D.VertexBuffer3D;
+import openfl.display3D.textures.RectangleTexture;
+import openfl.events.Event;
+import openfl.geom.Rectangle;
+import openfl.media._internal.NativeVideoBackend;
 #end
 
 /**
@@ -43,7 +43,7 @@ class NativeVideo extends Bitmap
 	@:noCompletion private var __textureWidth:Int;
 	@:noCompletion private var __textureHeight:Int;
 	@:noCompletion private var __videoWidth:Int;
-	@:noCompletion private var __videoHeight:Int;	
+	@:noCompletion private var __videoHeight:Int;
 	@:noCompletion private var __textureY:RectangleTexture;
 	@:noCompletion private var __textureUV:RectangleTexture;
 	@:noCompletion private var __videoTexture:RectangleTexture;
@@ -77,7 +77,7 @@ class NativeVideo extends Bitmap
 		__processFrames = __isHardware ? __processGLFrames : __processSoftwareFrames;
 
 		super(null, null, smoothing);
-		
+
 		__textureWidth = width;
 		__textureHeight = height;
 	}
@@ -92,13 +92,13 @@ class NativeVideo extends Bitmap
 	{
 		__videoWidth = __videoGetWidth(path);
 		__videoHeight = __videoGetHeight(path);
-		
+
 		var bmd:BitmapData = new BitmapData(__videoWidth, __videoHeight, false, 0x0);
 		this.bitmapData = bmd;
 		if (__videoWidth == -1 || __videoHeight == -1)
 		{
 			throw "Video not supported.";
-		}		
+		}
 
 		if (__isHardware)
 		{
@@ -106,7 +106,7 @@ class NativeVideo extends Bitmap
 			{
 				throw "Video not supported.";
 			}
-			
+
 			__context = Lib.current.stage.context3D;
 			__videoTexture = __context.createRectangleTexture(__textureWidth, __textureHeight, BGRA, true);
 			__textureY = __context.createRectangleTexture(__textureWidth, __textureHeight, null, false);
@@ -126,7 +126,8 @@ class NativeVideo extends Bitmap
 			__createProgram();
 			this.bitmapData.disposeImage();
 		}
-		else {
+		else
+		{
 			__setupBuffers();
 			__frameRect = new Rectangle(0, 0, __videoWidth, __videoHeight);
 			if (!__videoSoftwareLoad(path, __videoBuffer.getData(), __videoBuffer.length))
@@ -135,7 +136,7 @@ class NativeVideo extends Bitmap
 			}
 		}
 	}
-	
+
 	/**
 	 * Unloads the current video and releases resources.
 	 */
@@ -143,7 +144,6 @@ class NativeVideo extends Bitmap
 	{
 		__unloadBuffers();
 		__videoShutdown();
-
 	}
 
 	/**
@@ -174,20 +174,21 @@ class NativeVideo extends Bitmap
 
 	@:noCompletion private function __processGLFrames():Void
 	{
-		if (!__videoGLUpdateFrame()){
+		if (!__videoGLUpdateFrame())
+		{
 			stop();
 		}
-		
+
 		__context.setRenderToTexture(__videoTexture, true);
 		__context.setProgram(__program);
 		__context.setTextureAt(0, __textureY);
 		__context.setTextureAt(1, __textureUV);
 
 		__context.setVertexBufferAt(0, __positions, 0, FLOAT_2); // aPosition
-		__context.setVertexBufferAt(1, __uvs, 0, FLOAT_2);       // aTexCoord
+		__context.setVertexBufferAt(1, __uvs, 0, FLOAT_2); // aTexCoord
 		__context.drawTriangles(__indices);
 		__context.setRenderToBackBuffer();
-		
+
 		@:privateAccess
 		this.bitmapData.__texture = __videoTexture;
 		this.bitmapData = this.bitmapData;
@@ -228,9 +229,9 @@ class NativeVideo extends Bitmap
 		// Vertex positions (-1 to 1)
 		var posData = new Float32Array([
 			-1, -1,
-			1, -1,
+			 1, -1,
 			-1,  1,
-			1,  1
+			 1,  1
 		]);
 		__positions = __context.createVertexBuffer(4, 2);
 		__positions.uploadFromTypedArray(posData, 0);
@@ -304,7 +305,6 @@ class NativeVideo extends Bitmap
 	@:noCompletion private static function __videoGLLoad(path:String):Bool
 	{
 		return NativeVideoBackend.__videoGLLoad(path);
-
 	}
 
 	@:noCompletion private static function __videoGLUpdateFrame():Bool
@@ -331,7 +331,7 @@ class NativeVideo extends Bitmap
 	{
 		var frameSize = width * height;
 		var uvOffset = frameSize + width * 2; // skip first UV row
-		var maxUVRows = ((height - 4) >> 1);  // only read UV rows for 270 Y lines
+		var maxUVRows = ((height - 4) >> 1); // only read UV rows for 270 Y lines
 
 		for (y in 0...height)
 		{
@@ -368,7 +368,6 @@ class NativeVideo extends Bitmap
 	{
 		return v < 0 ? 0 : (v > 255 ? 255 : v);
 	}
-
 	#else
 	public function new(Width:Int, height:Int, smoothing:Bool = false)
 	{

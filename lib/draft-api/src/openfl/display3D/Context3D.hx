@@ -26,13 +26,13 @@ import openfl.utils._internal.UInt8Array;
 import openfl.utils.AGALMiniAssembler;
 import openfl.utils.ByteArray;
 #if lime
-	import lime.graphics.opengl.GL;
-	import lime.graphics.Image;
-	import lime.graphics.ImageBuffer;
-	import lime.graphics.RenderContext;
-	import lime.graphics.WebGLRenderContext;
-	import lime.math.Rectangle as LimeRectangle;
-	import lime.math.Vector2;
+import lime.graphics.opengl.GL;
+import lime.graphics.Image;
+import lime.graphics.ImageBuffer;
+import lime.graphics.RenderContext;
+import lime.graphics.WebGLRenderContext;
+import lime.math.Rectangle as LimeRectangle;
+import lime.math.Vector2;
 #end
 
 /**
@@ -260,29 +260,29 @@ import openfl.utils.ByteArray;
 	@:noCompletion private static var __glTextureMaxAnisotropy:Int = -1;
 
 	@:noCompletion private var gl:#if lime WebGLRenderContext #else Dynamic #end;
-@:noCompletion private var __backBufferAntiAlias:Int;
-@:noCompletion private var __backBufferTexture:RectangleTexture;
-@:noCompletion private var __backBufferWantsBestResolution:Bool;
-@:noCompletion private var __backBufferWantsBestResolutionOnBrowserZoom:Bool;
-@:noCompletion private var __cleared:Bool;
-@:noCompletion private var __context:#if lime RenderContext #else Dynamic #end;
-@:noCompletion private var __contextState:Context3DState;
-@:noCompletion private var __renderStage3DProgram:Program3D;
-@:noCompletion private var __enableErrorChecking:Bool;
-@:noCompletion private var __fragmentConstants:Float32Array;
-@:noCompletion private var __frontBufferTexture:RectangleTexture;
-@:noCompletion private var __positionScale:Float32Array; // TODO: Better approach?
-@:noCompletion private var __present:Bool;
-@:noCompletion private var __programs:Map<String, Program3D>;
-@:noCompletion private var __quadIndexBuffer:IndexBuffer3D;
-@:noCompletion private var __quadIndexBufferCount:Int;
-@:noCompletion private var __quadIndexBufferElements:Int;
-@:noCompletion private var __stage:Stage;
-@:noCompletion private var __stage3D:Stage3D;
-@:noCompletion private var __state:Context3DState;
-@:noCompletion private var __vertexConstants:Float32Array;
+	@:noCompletion private var __backBufferAntiAlias:Int;
+	@:noCompletion private var __backBufferTexture:RectangleTexture;
+	@:noCompletion private var __backBufferWantsBestResolution:Bool;
+	@:noCompletion private var __backBufferWantsBestResolutionOnBrowserZoom:Bool;
+	@:noCompletion private var __cleared:Bool;
+	@:noCompletion private var __context:#if lime RenderContext #else Dynamic #end;
+	@:noCompletion private var __contextState:Context3DState;
+	@:noCompletion private var __renderStage3DProgram:Program3D;
+	@:noCompletion private var __enableErrorChecking:Bool;
+	@:noCompletion private var __fragmentConstants:Float32Array;
+	@:noCompletion private var __frontBufferTexture:RectangleTexture;
+	@:noCompletion private var __positionScale:Float32Array; // TODO: Better approach?
+	@:noCompletion private var __present:Bool;
+	@:noCompletion private var __programs:Map<String, Program3D>;
+	@:noCompletion private var __quadIndexBuffer:IndexBuffer3D;
+	@:noCompletion private var __quadIndexBufferCount:Int;
+	@:noCompletion private var __quadIndexBufferElements:Int;
+	@:noCompletion private var __stage:Stage;
+	@:noCompletion private var __stage3D:Stage3D;
+	@:noCompletion private var __state:Context3DState;
+	@:noCompletion private var __vertexConstants:Float32Array;
 
-@:noCompletion private function new(stage:Stage, contextState:Context3DState = null, stage3D:Stage3D = null)
+	@:noCompletion private function new(stage:Stage, contextState:Context3DState = null, stage3D:Stage3D = null)
 	{
 		super();
 
@@ -325,9 +325,9 @@ import openfl.utils.ByteArray;
 
 			#if (js && html5)
 			if (extension == null
-					|| !Reflect.hasField(extension, "MAX_TEXTURE_MAX_ANISOTROPY_EXT")) extension = gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
+				|| !Reflect.hasField(extension, "MAX_TEXTURE_MAX_ANISOTROPY_EXT")) extension = gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
 			if (extension == null
-					|| !Reflect.hasField(extension, "MAX_TEXTURE_MAX_ANISOTROPY_EXT")) extension = gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
+				|| !Reflect.hasField(extension, "MAX_TEXTURE_MAX_ANISOTROPY_EXT")) extension = gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
 			#end
 
 			if (extension != null)
@@ -458,7 +458,7 @@ import openfl.utils.ByteArray;
 		@throws	Error	3768: The Stage3D API may not be used during background execution.
 	**/
 	public function clear(red:Float = 0, green:Float = 0, blue:Float = 0, alpha:Float = 1, depth:Float = 1, stencil:UInt = 0,
-						  mask:UInt = Context3DClearMask.ALL):Void
+			mask:UInt = Context3DClearMask.ALL):Void
 	{
 		__flushGLFramebuffer();
 		__flushGLViewport();
@@ -476,16 +476,16 @@ import openfl.utils.ByteArray;
 			clearMask |= gl.COLOR_BUFFER_BIT;
 
 			if (#if openfl_disable_context_cache true #else __contextState.colorMaskRed != true
-							|| __contextState.colorMaskGreen != true
-							|| __contextState.colorMaskBlue != true
-							|| __contextState.colorMaskAlpha != true #end)
-					{
-						gl.colorMask(true, true, true, true);
-						__contextState.colorMaskRed = true;
-						__contextState.colorMaskGreen = true;
-						__contextState.colorMaskBlue = true;
-						__contextState.colorMaskAlpha = true;
-					}
+				|| __contextState.colorMaskGreen != true
+				|| __contextState.colorMaskBlue != true
+				|| __contextState.colorMaskAlpha != true #end)
+			{
+				gl.colorMask(true, true, true, true);
+				__contextState.colorMaskRed = true;
+				__contextState.colorMaskGreen = true;
+				__contextState.colorMaskBlue = true;
+				__contextState.colorMaskAlpha = true;
+			}
 
 			gl.clearColor(red, green, blue, alpha);
 		}
@@ -495,10 +495,10 @@ import openfl.utils.ByteArray;
 			clearMask |= gl.DEPTH_BUFFER_BIT;
 
 			if (#if openfl_disable_context_cache true #else __contextState.depthMask != true #end)
-					{
-						gl.depthMask(true);
-						__contextState.depthMask = true;
-					}
+			{
+				gl.depthMask(true);
+				__contextState.depthMask = true;
+			}
 
 			gl.clearDepth(depth);
 		}
@@ -508,10 +508,10 @@ import openfl.utils.ByteArray;
 			clearMask |= gl.STENCIL_BUFFER_BIT;
 
 			if (#if openfl_disable_context_cache true #else __contextState.stencilWriteMask != 0xFF #end)
-					{
-						gl.stencilMask(0xFF);
-						__contextState.stencilWriteMask = 0xFF;
-					}
+			{
+				gl.stencilMask(0xFF);
+				__contextState.stencilWriteMask = 0xFF;
+			}
 
 			gl.clearStencil(stencil);
 			__contextState.stencilWriteMask = 0xFF;
@@ -577,7 +577,7 @@ import openfl.utils.ByteArray;
 		on the Context3D object.
 	**/
 	public function configureBackBuffer(width:Int, height:Int, antiAlias:Int, enableDepthAndStencil:Bool = true, wantsBestResolution:Bool = false,
-										wantsBestResolutionOnBrowserZoom:Bool = false):Void
+			wantsBestResolutionOnBrowserZoom:Bool = false):Void
 	{
 		#if !openfl_dpi_aware
 		if (wantsBestResolution)
@@ -620,8 +620,27 @@ import openfl.utils.ByteArray;
 				var scaledHeight = wantsBestResolution ? height : Std.int(height * __stage.window.scale);
 				#end
 				var vertexData = new Vector<Float>([
-													   scaledWidth, scaledHeight, 0, 1, 1, 0, scaledHeight, 0, 0, 1, scaledWidth, 0, 0, 1, 0, 0, 0, 0, 0, 0.0
-												   ]);
+					scaledWidth,
+					scaledHeight,
+					0,
+					1,
+					1,
+					0,
+					scaledHeight,
+					0,
+					0,
+					1,
+					scaledWidth,
+					0,
+					0,
+					1,
+					0,
+					0,
+					0,
+					0,
+					0,
+					0.0
+				]);
 
 				__stage3D.__vertexBuffer.uploadFromVector(vertexData, 0, 20);
 
@@ -1106,7 +1125,7 @@ import openfl.utils.ByteArray;
 			if (cacheRenderToTexture != null)
 			{
 				setRenderToTexture(cacheRenderToTexture, __state.renderToTextureDepthStencil, __state.renderToTextureAntiAlias,
-								   __state.renderToTextureSurfaceSelector);
+					__state.renderToTextureSurfaceSelector);
 			}
 		}
 		#end
@@ -1779,8 +1798,8 @@ import openfl.utils.ByteArray;
 		Context3DStencilAction class.
 	**/
 	public function setStencilActions(triangleFace:Context3DTriangleFace = FRONT_AND_BACK, compareMode:Context3DCompareMode = ALWAYS,
-									  actionOnBothPass:Context3DStencilAction = KEEP, actionOnDepthFail:Context3DStencilAction = KEEP,
-									  actionOnDepthPassStencilFail:Context3DStencilAction = KEEP):Void
+			actionOnBothPass:Context3DStencilAction = KEEP, actionOnDepthFail:Context3DStencilAction = KEEP,
+			actionOnDepthPassStencilFail:Context3DStencilAction = KEEP):Void
 	{
 		__state.stencilTriangleFace = triangleFace;
 		__state.stencilCompareMode = compareMode;
@@ -1930,28 +1949,28 @@ import openfl.utils.ByteArray;
 	@:noCompletion private function __bindGLArrayBuffer(buffer:GLBuffer):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__currentGLArrayBuffer != buffer #end)
-				{
-					gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-					__contextState.__currentGLArrayBuffer = buffer;
-				}
+		{
+			gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+			__contextState.__currentGLArrayBuffer = buffer;
+		}
 	}
 
 	@:noCompletion private function __bindGLElementArrayBuffer(buffer:GLBuffer):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__currentGLElementArrayBuffer != buffer #end)
-				{
-					gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
-					__contextState.__currentGLElementArrayBuffer = buffer;
-				}
+		{
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer);
+			__contextState.__currentGLElementArrayBuffer = buffer;
+		}
 	}
 
 	@:noCompletion private function __bindGLFramebuffer(framebuffer:GLFramebuffer):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__currentGLFramebuffer != framebuffer #end)
-				{
-					gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-					__contextState.__currentGLFramebuffer = framebuffer;
-				}
+		{
+			gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+			__contextState.__currentGLFramebuffer = framebuffer;
+		}
 	}
 
 	@:noCompletion private function __bindGLTexture2D(texture:GLTexture):Void
@@ -2048,112 +2067,112 @@ import openfl.utils.ByteArray;
 	@:noCompletion private function __flushGLBlend():Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.blendDestinationRGBFactor != __state.blendDestinationRGBFactor
-				|| __contextState.blendSourceRGBFactor != __state.blendSourceRGBFactor
-				|| __contextState.blendDestinationAlphaFactor != __state.blendDestinationAlphaFactor
-				|| __contextState.blendSourceAlphaFactor != __state.blendSourceAlphaFactor #end)
-				{
-					__setGLBlend(true);
+			|| __contextState.blendSourceRGBFactor != __state.blendSourceRGBFactor
+			|| __contextState.blendDestinationAlphaFactor != __state.blendDestinationAlphaFactor
+			|| __contextState.blendSourceAlphaFactor != __state.blendSourceAlphaFactor #end)
+		{
+			__setGLBlend(true);
 
-					if (__state.blendDestinationRGBFactor == __state.blendDestinationAlphaFactor
-					&& __state.blendSourceRGBFactor == __state.blendSourceAlphaFactor)
-					{
-						gl.blendFunc(__getGLBlend(__state.blendSourceRGBFactor), __getGLBlend(__state.blendDestinationRGBFactor));
-					}
-					else
-					{
-						gl.blendFuncSeparate(__getGLBlend(__state.blendSourceRGBFactor), __getGLBlend(__state.blendDestinationRGBFactor),
-						__getGLBlend(__state.blendSourceAlphaFactor), __getGLBlend(__state.blendDestinationAlphaFactor));
-					}
+			if (__state.blendDestinationRGBFactor == __state.blendDestinationAlphaFactor
+				&& __state.blendSourceRGBFactor == __state.blendSourceAlphaFactor)
+			{
+				gl.blendFunc(__getGLBlend(__state.blendSourceRGBFactor), __getGLBlend(__state.blendDestinationRGBFactor));
+			}
+			else
+			{
+				gl.blendFuncSeparate(__getGLBlend(__state.blendSourceRGBFactor), __getGLBlend(__state.blendDestinationRGBFactor),
+					__getGLBlend(__state.blendSourceAlphaFactor), __getGLBlend(__state.blendDestinationAlphaFactor));
+			}
 
-					__contextState.blendDestinationRGBFactor = __state.blendDestinationRGBFactor;
-					__contextState.blendSourceRGBFactor = __state.blendSourceRGBFactor;
-					__contextState.blendDestinationAlphaFactor = __state.blendDestinationAlphaFactor;
-					__contextState.blendSourceAlphaFactor = __state.blendSourceAlphaFactor;
-				}
+			__contextState.blendDestinationRGBFactor = __state.blendDestinationRGBFactor;
+			__contextState.blendSourceRGBFactor = __state.blendSourceRGBFactor;
+			__contextState.blendDestinationAlphaFactor = __state.blendDestinationAlphaFactor;
+			__contextState.blendSourceAlphaFactor = __state.blendSourceAlphaFactor;
+		}
 	}
 
 	@:noCompletion private inline function __flushGLColor():Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.colorMaskRed != __state.colorMaskRed
-				|| __contextState.colorMaskGreen != __state.colorMaskGreen
-				|| __contextState.colorMaskBlue != __state.colorMaskBlue
-				|| __contextState.colorMaskAlpha != __state.colorMaskAlpha #end)
-				{
-					gl.colorMask(__state.colorMaskRed, __state.colorMaskGreen, __state.colorMaskBlue, __state.colorMaskAlpha);
-					__contextState.colorMaskRed = __state.colorMaskRed;
-					__contextState.colorMaskGreen = __state.colorMaskGreen;
-					__contextState.colorMaskBlue = __state.colorMaskBlue;
-					__contextState.colorMaskAlpha = __state.colorMaskAlpha;
-				}
+			|| __contextState.colorMaskGreen != __state.colorMaskGreen
+			|| __contextState.colorMaskBlue != __state.colorMaskBlue
+			|| __contextState.colorMaskAlpha != __state.colorMaskAlpha #end)
+		{
+			gl.colorMask(__state.colorMaskRed, __state.colorMaskGreen, __state.colorMaskBlue, __state.colorMaskAlpha);
+			__contextState.colorMaskRed = __state.colorMaskRed;
+			__contextState.colorMaskGreen = __state.colorMaskGreen;
+			__contextState.colorMaskBlue = __state.colorMaskBlue;
+			__contextState.colorMaskAlpha = __state.colorMaskAlpha;
+		}
 	}
 
 	@:noCompletion private function __flushGLCulling():Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.culling != __state.culling #end)
+		{
+			if (__state.culling == NONE)
+			{
+				__setGLCullFace(false);
+			}
+			else
+			{
+				__setGLCullFace(true);
+
+				switch (__state.culling)
 				{
-					if (__state.culling == NONE)
-					{
-						__setGLCullFace(false);
-					}
-					else
-					{
-						__setGLCullFace(true);
-
-						switch (__state.culling)
-						{
-							case NONE: // skip
-							case BACK:
-								gl.cullFace(gl.BACK);
-							case FRONT:
-								gl.cullFace(gl.FRONT);
-							case FRONT_AND_BACK:
-								gl.cullFace(gl.FRONT_AND_BACK);
-							default:
-								throw new IllegalOperationError();
-						}
-					}
-
-					__contextState.culling = __state.culling;
+					case NONE: // skip
+					case BACK:
+						gl.cullFace(gl.BACK);
+					case FRONT:
+						gl.cullFace(gl.FRONT);
+					case FRONT_AND_BACK:
+						gl.cullFace(gl.FRONT_AND_BACK);
+					default:
+						throw new IllegalOperationError();
 				}
+			}
+
+			__contextState.culling = __state.culling;
+		}
 	}
 
 	@:noCompletion private function __flushGLDepth():Void
 	{
 		var depthMask = (__state.depthMask
-		&& (__state.renderToTexture != null ? __state.renderToTextureDepthStencil : __state.backBufferEnableDepthAndStencil));
+			&& (__state.renderToTexture != null ? __state.renderToTextureDepthStencil : __state.backBufferEnableDepthAndStencil));
 
 		if (#if openfl_disable_context_cache true #else __contextState.depthMask != depthMask #end)
-				{
-					gl.depthMask(depthMask);
-					__contextState.depthMask = depthMask;
-				}
+		{
+			gl.depthMask(depthMask);
+			__contextState.depthMask = depthMask;
+		}
 
-			if (#if openfl_disable_context_cache true #else __contextState.depthCompareMode != __state.depthCompareMode #end)
-					{
-						switch (__state.depthCompareMode)
-						{
-							case ALWAYS:
-								gl.depthFunc(gl.ALWAYS);
-							case EQUAL:
-								gl.depthFunc(gl.EQUAL);
-							case GREATER:
-								gl.depthFunc(gl.GREATER);
-							case GREATER_EQUAL:
-								gl.depthFunc(gl.GEQUAL);
-							case LESS:
-								gl.depthFunc(gl.LESS);
-							case LESS_EQUAL:
-								gl.depthFunc(gl.LEQUAL);
-							case NEVER:
-								gl.depthFunc(gl.NEVER);
-							case NOT_EQUAL:
-								gl.depthFunc(gl.NOTEQUAL);
-							default:
-								throw new IllegalOperationError();
-						}
+		if (#if openfl_disable_context_cache true #else __contextState.depthCompareMode != __state.depthCompareMode #end)
+		{
+			switch (__state.depthCompareMode)
+			{
+				case ALWAYS:
+					gl.depthFunc(gl.ALWAYS);
+				case EQUAL:
+					gl.depthFunc(gl.EQUAL);
+				case GREATER:
+					gl.depthFunc(gl.GREATER);
+				case GREATER_EQUAL:
+					gl.depthFunc(gl.GEQUAL);
+				case LESS:
+					gl.depthFunc(gl.LESS);
+				case LESS_EQUAL:
+					gl.depthFunc(gl.LEQUAL);
+				case NEVER:
+					gl.depthFunc(gl.NEVER);
+				case NOT_EQUAL:
+					gl.depthFunc(gl.NOTEQUAL);
+				default:
+					throw new IllegalOperationError();
+			}
 
-						__contextState.depthCompareMode = __state.depthCompareMode;
-					}
+			__contextState.depthCompareMode = __state.depthCompareMode;
+		}
 	}
 
 	@:noCompletion private function __flushGLFramebuffer():Void
@@ -2161,17 +2180,17 @@ import openfl.utils.ByteArray;
 		if (__state.renderToTexture != null)
 		{
 			if (#if openfl_disable_context_cache true #else __contextState.renderToTexture != __state.renderToTexture
-					|| __contextState.renderToTextureSurfaceSelector != __state.renderToTextureSurfaceSelector #end)
-					{
-						var framebuffer = __state.renderToTexture.__getGLFramebuffer(__state.renderToTextureDepthStencil, __state.renderToTextureAntiAlias,
-						__state.renderToTextureSurfaceSelector);
-						__bindGLFramebuffer(framebuffer);
+				|| __contextState.renderToTextureSurfaceSelector != __state.renderToTextureSurfaceSelector #end)
+			{
+				var framebuffer = __state.renderToTexture.__getGLFramebuffer(__state.renderToTextureDepthStencil, __state.renderToTextureAntiAlias,
+					__state.renderToTextureSurfaceSelector);
+				__bindGLFramebuffer(framebuffer);
 
-						__contextState.renderToTexture = __state.renderToTexture;
-						__contextState.renderToTextureAntiAlias = __state.renderToTextureAntiAlias;
-						__contextState.renderToTextureDepthStencil = __state.renderToTextureDepthStencil;
-						__contextState.renderToTextureSurfaceSelector = __state.renderToTextureSurfaceSelector;
-					}
+				__contextState.renderToTexture = __state.renderToTexture;
+				__contextState.renderToTextureAntiAlias = __state.renderToTextureAntiAlias;
+				__contextState.renderToTextureDepthStencil = __state.renderToTextureDepthStencil;
+				__contextState.renderToTextureSurfaceSelector = __state.renderToTextureSurfaceSelector;
+			}
 
 			__setGLDepthTest(__state.renderToTextureDepthStencil);
 			__setGLStencilTest(__state.renderToTextureDepthStencil);
@@ -2186,15 +2205,15 @@ import openfl.utils.ByteArray;
 			}
 
 			if (#if openfl_disable_context_cache true #else __contextState.renderToTexture != null
-					|| __contextState.__currentGLFramebuffer != __state.__primaryGLFramebuffer
-					|| __contextState.backBufferEnableDepthAndStencil != __state.backBufferEnableDepthAndStencil #end
-					   )
-					{
-						__bindGLFramebuffer(__state.__primaryGLFramebuffer);
+				|| __contextState.__currentGLFramebuffer != __state.__primaryGLFramebuffer
+				|| __contextState.backBufferEnableDepthAndStencil != __state.backBufferEnableDepthAndStencil #end
+			)
+			{
+				__bindGLFramebuffer(__state.__primaryGLFramebuffer);
 
-						__contextState.renderToTexture = null;
-						__contextState.backBufferEnableDepthAndStencil = __state.backBufferEnableDepthAndStencil;
-					}
+				__contextState.renderToTexture = null;
+				__contextState.backBufferEnableDepthAndStencil = __state.backBufferEnableDepthAndStencil;
+			}
 
 			__setGLDepthTest(__state.backBufferEnableDepthAndStencil);
 			__setGLStencilTest(__state.backBufferEnableDepthAndStencil);
@@ -2209,36 +2228,36 @@ import openfl.utils.ByteArray;
 		var program = __state.program;
 
 		if (#if openfl_disable_context_cache true #else __contextState.shader != shader #end)
-				{
-					// TODO: Merge this logic
+		{
+			// TODO: Merge this logic
 
-					if (__contextState.shader != null)
-					{
-						__contextState.shader.__disable();
-					}
+			if (__contextState.shader != null)
+			{
+				__contextState.shader.__disable();
+			}
 
-					if (shader != null)
-					{
-						shader.__enable();
-					}
+			if (shader != null)
+			{
+				shader.__enable();
+			}
 
-					__contextState.shader = shader;
-				}
+			__contextState.shader = shader;
+		}
 
-			if (#if openfl_disable_context_cache true #else __contextState.program != program #end)
-					{
-						if (__contextState.program != null)
-						{
-							__contextState.program.__disable();
-						}
+		if (#if openfl_disable_context_cache true #else __contextState.program != program #end)
+		{
+			if (__contextState.program != null)
+			{
+				__contextState.program.__disable();
+			}
 
-						if (program != null)
-						{
-							program.__enable();
-						}
+			if (program != null)
+			{
+				program.__enable();
+			}
 
-						__contextState.program = program;
-					}
+			__contextState.program = program;
+		}
 
 		if (program != null && program.__format == AGAL)
 		{
@@ -2252,10 +2271,10 @@ import openfl.utils.ByteArray;
 		if (!__state.scissorEnabled)
 		{
 			if (#if openfl_disable_context_cache true #else __contextState.scissorEnabled != __state.scissorEnabled #end)
-					{
-						__setGLScissorTest(false);
-						__contextState.scissorEnabled = false;
-					}
+			{
+				__setGLScissorTest(false);
+				__contextState.scissorEnabled = false;
+			}
 		}
 		else
 		{
@@ -2283,47 +2302,47 @@ import openfl.utils.ByteArray;
 			}
 
 			if (#if openfl_disable_context_cache true #else __contextState.scissorRectangle.x != scissorX
-					|| __contextState.scissorRectangle.y != scissorY
-					|| __contextState.scissorRectangle.width != scissorWidth
-					|| __contextState.scissorRectangle.height != scissorHeight #end)
-					{
-						gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
-						__contextState.scissorRectangle.setTo(scissorX, scissorY, scissorWidth, scissorHeight);
-					}
+				|| __contextState.scissorRectangle.y != scissorY
+				|| __contextState.scissorRectangle.width != scissorWidth
+				|| __contextState.scissorRectangle.height != scissorHeight #end)
+			{
+				gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
+				__contextState.scissorRectangle.setTo(scissorX, scissorY, scissorWidth, scissorHeight);
+			}
 		}
 	}
 
 	@:noCompletion private function __flushGLStencil():Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.stencilTriangleFace != __state.stencilTriangleFace
-				|| __contextState.stencilPass != __state.stencilPass
-				|| __contextState.stencilDepthFail != __state.stencilDepthFail
-				|| __contextState.stencilFail != __state.stencilFail #end)
-				{
-					gl.stencilOpSeparate(__getGLTriangleFace(__state.stencilTriangleFace), __getGLStencilAction(__state.stencilFail),
-					__getGLStencilAction(__state.stencilDepthFail), __getGLStencilAction(__state.stencilPass));
-					__contextState.stencilTriangleFace = __state.stencilTriangleFace;
-					__contextState.stencilPass = __state.stencilPass;
-					__contextState.stencilDepthFail = __state.stencilDepthFail;
-					__contextState.stencilFail = __state.stencilFail;
-				}
+			|| __contextState.stencilPass != __state.stencilPass
+			|| __contextState.stencilDepthFail != __state.stencilDepthFail
+			|| __contextState.stencilFail != __state.stencilFail #end)
+		{
+			gl.stencilOpSeparate(__getGLTriangleFace(__state.stencilTriangleFace), __getGLStencilAction(__state.stencilFail),
+				__getGLStencilAction(__state.stencilDepthFail), __getGLStencilAction(__state.stencilPass));
+			__contextState.stencilTriangleFace = __state.stencilTriangleFace;
+			__contextState.stencilPass = __state.stencilPass;
+			__contextState.stencilDepthFail = __state.stencilDepthFail;
+			__contextState.stencilFail = __state.stencilFail;
+		}
 
-			if (#if openfl_disable_context_cache true #else __contextState.stencilWriteMask != __state.stencilWriteMask #end)
-					{
-						gl.stencilMask(__state.stencilWriteMask);
-						__contextState.stencilWriteMask = __state.stencilWriteMask;
-					}
+		if (#if openfl_disable_context_cache true #else __contextState.stencilWriteMask != __state.stencilWriteMask #end)
+		{
+			gl.stencilMask(__state.stencilWriteMask);
+			__contextState.stencilWriteMask = __state.stencilWriteMask;
+		}
 
-				if (#if openfl_disable_context_cache true #else __contextState.stencilCompareMode != __state.stencilCompareMode
-						|| __contextState.stencilReferenceValue != __state.stencilReferenceValue
-						|| __contextState.stencilReadMask != __state.stencilReadMask #end
-						   )
-						{
-							gl.stencilFunc(__getGLCompareMode(__state.stencilCompareMode), __state.stencilReferenceValue, __state.stencilReadMask);
-							__contextState.stencilCompareMode = __state.stencilCompareMode;
-							__contextState.stencilReferenceValue = __state.stencilReferenceValue;
-							__contextState.stencilReadMask = __state.stencilReadMask;
-						}
+		if (#if openfl_disable_context_cache true #else __contextState.stencilCompareMode != __state.stencilCompareMode
+			|| __contextState.stencilReferenceValue != __state.stencilReferenceValue
+			|| __contextState.stencilReadMask != __state.stencilReadMask #end
+		)
+		{
+			gl.stencilFunc(__getGLCompareMode(__state.stencilCompareMode), __state.stencilReferenceValue, __state.stencilReadMask);
+			__contextState.stencilCompareMode = __state.stencilCompareMode;
+			__contextState.stencilReferenceValue = __state.stencilReferenceValue;
+			__contextState.stencilReadMask = __state.stencilReadMask;
+		}
 	}
 
 	@:noCompletion private function __flushGLTextures():Void
@@ -2373,8 +2392,8 @@ import openfl.utils.ByteArray;
 			{
 				__bindGLTexture2D(null);
 			}
-			
-			//handles glsl uniforms but they must start with "u_tex" we need to change this or document it
+
+			// handles glsl uniforms but they must start with "u_tex" we need to change this or document it
 			if (__state.program != null && __state.program.__format == GLSL)
 			{
 				var uniformName = "u_tex" + sampler;
@@ -2384,9 +2403,8 @@ import openfl.utils.ByteArray;
 				{
 					gl.uniform1i(location, sampler);
 				}
-			} else
-
-			if (__state.program != null && __state.program.__format == AGAL && samplerState.textureAlpha)
+			}
+			else if (__state.program != null && __state.program.__format == AGAL && samplerState.textureAlpha)
 			{
 				gl.activeTexture(gl.TEXTURE0 + sampler + 4);
 
@@ -2559,11 +2577,11 @@ import openfl.utils.ByteArray;
 		var context = stage3D.context3D;
 
 		if (context != null
-		&& context != this
-		&& context.__frontBufferTexture != null
-		&& stage3D.visible
-		&& backBufferHeight > 0
-		&& backBufferWidth > 0)
+			&& context != this
+			&& context.__frontBufferTexture != null
+			&& stage3D.visible
+			&& backBufferHeight > 0
+			&& backBufferWidth > 0)
 		{
 			// if (!__stage.__renderer.__cleared) __stage.__renderer.__clear ();
 
@@ -2602,99 +2620,99 @@ import openfl.utils.ByteArray;
 	@:noCompletion private function __setGLBlend(enable:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__enableGLBlend != enable #end)
-				{
-					if (enable)
-					{
-						gl.enable(gl.BLEND);
-					}
-					else
-					{
-						gl.disable(gl.BLEND);
-					}
-					__contextState.__enableGLBlend = enable;
-				}
+		{
+			if (enable)
+			{
+				gl.enable(gl.BLEND);
+			}
+			else
+			{
+				gl.disable(gl.BLEND);
+			}
+			__contextState.__enableGLBlend = enable;
+		}
 	}
 
 	@:noCompletion private function __setGLBlendEquation(value:Int):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__glBlendEquation != value #end)
-				{
-					gl.blendEquation(value);
-					__contextState.__glBlendEquation = value;
-				}
+		{
+			gl.blendEquation(value);
+			__contextState.__glBlendEquation = value;
+		}
 	}
 
 	@:noCompletion private function __setGLCullFace(enable:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__enableGLCullFace != enable #end)
-				{
-					if (enable)
-					{
-						gl.enable(gl.CULL_FACE);
-					}
-					else
-					{
-						gl.disable(gl.CULL_FACE);
-					}
-					__contextState.__enableGLCullFace = enable;
-				}
+		{
+			if (enable)
+			{
+				gl.enable(gl.CULL_FACE);
+			}
+			else
+			{
+				gl.disable(gl.CULL_FACE);
+			}
+			__contextState.__enableGLCullFace = enable;
+		}
 	}
 
 	@:noCompletion private function __setGLDepthTest(enable:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__enableGLDepthTest != enable #end)
-				{
-					if (enable)
-					{
-						gl.enable(gl.DEPTH_TEST);
-					}
-					else
-					{
-						gl.disable(gl.DEPTH_TEST);
-					}
-					__contextState.__enableGLDepthTest = enable;
-				}
+		{
+			if (enable)
+			{
+				gl.enable(gl.DEPTH_TEST);
+			}
+			else
+			{
+				gl.disable(gl.DEPTH_TEST);
+			}
+			__contextState.__enableGLDepthTest = enable;
+		}
 	}
 
 	@:noCompletion private function __setGLFrontFace(counterClockWise:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__frontFaceGLCCW != counterClockWise #end)
-				{
-					gl.frontFace(counterClockWise ? gl.CCW : gl.CW);
-					__contextState.__frontFaceGLCCW = counterClockWise;
-				}
+		{
+			gl.frontFace(counterClockWise ? gl.CCW : gl.CW);
+			__contextState.__frontFaceGLCCW = counterClockWise;
+		}
 	}
 
 	@:noCompletion private function __setGLScissorTest(enable:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__enableGLScissorTest != enable #end)
-				{
-					if (enable)
-					{
-						gl.enable(gl.SCISSOR_TEST);
-					}
-					else
-					{
-						gl.disable(gl.SCISSOR_TEST);
-					}
-					__contextState.__enableGLScissorTest = enable;
-				}
+		{
+			if (enable)
+			{
+				gl.enable(gl.SCISSOR_TEST);
+			}
+			else
+			{
+				gl.disable(gl.SCISSOR_TEST);
+			}
+			__contextState.__enableGLScissorTest = enable;
+		}
 	}
 
 	@:noCompletion private function __setGLStencilTest(enable:Bool):Void
 	{
 		if (#if openfl_disable_context_cache true #else __contextState.__enableGLStencilTest != enable #end)
-				{
-					if (enable)
-					{
-						gl.enable(gl.STENCIL_TEST);
-					}
-					else
-					{
-						gl.disable(gl.STENCIL_TEST);
-					}
-					__contextState.__enableGLStencilTest = enable;
-				}
+		{
+			if (enable)
+			{
+				gl.enable(gl.STENCIL_TEST);
+			}
+			else
+			{
+				gl.disable(gl.STENCIL_TEST);
+			}
+			__contextState.__enableGLStencilTest = enable;
+		}
 	}
 
 	// Get & Set Methods

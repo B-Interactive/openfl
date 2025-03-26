@@ -1,6 +1,5 @@
 package openfl.net;
 
-
 #if !(flash || air)
 import haxe.Timer;
 import openfl.errors.ArgumentError;
@@ -23,20 +22,21 @@ import openfl.events.EventDispatcher;
  */
 @:access(haxe.Serializer)
 @:access(openfl.net._internal.NativeLocalConnection)
-class LocalConnection extends EventDispatcher{
+class LocalConnection extends EventDispatcher
+{
+	public var client:Object;
 
-    public var client:Object;
+	public var domain(get, never):String;
 
-    public var domain(get, never):String;
+	public var isPerUser:Bool;
 
-    public var isPerUser:Bool;
+	private function get_domain():String
+	{
+		Lib.notImplemented("LocalConnection.domain");
+		return "";
+	}
 
-    private function get_domain():String {
-        Lib.notImplemented("LocalConnection.domain");
-        return "";
-    }
-    
-    @:noCompletion private var __inboundPipe:HANDLE;
+	@:noCompletion private var __inboundPipe:HANDLE;
 	@:noCompletion private var __outboundPipe:HANDLE;
 	@:noCompletion private var __serializer:Serializer;
 	@:noCompletion private var __worker:BackgroundWorker;
@@ -47,18 +47,18 @@ class LocalConnection extends EventDispatcher{
 
 	@:noCompletion private static inline var TIME_OUT:Int = 45000;
 	@:noCompletion private static inline var BUFFER_SIZE:Int = 4096;
-    
-    public function new() {
-        super();
+
+	public function new()
+	{
+		super();
 		__serializer = new Serializer();
 		__serializer.useCache = true;
 		__clientPipes = [];
-    }
+	}
 
-    /** Closes the receiving connection*/
+	/** Closes the receiving connection*/
 	public function close():Void
 	{
-
 		if (__inboundPipe != null)
 		{
 			__close(__inboundPipe);
@@ -67,22 +67,22 @@ class LocalConnection extends EventDispatcher{
 		__connected = false;
 	}
 
-    /** Starts listening for messages */
+	/** Starts listening for messages */
 	public function connect(connectionName:String):Void
 	{
-		//trace('Connecting as server: ' + connectionName);
+		// trace('Connecting as server: ' + connectionName);
 		if (!__setupNamedPipe(connectionName))
 		{
-
-			//trace("Error setting up named pipe: " + connectionName);
+			// trace("Error setting up named pipe: " + connectionName);
 			throw new ArgumentError("Connection name is already in use or invalid");
 		}
-		else {
+		else
+		{
 			__connected = true;
 		}
 	}
 
-    /** Sends a message to another connection */
+	/** Sends a message to another connection */
 	public function send(connectionName:String, methodName:String, ...arguments):Void
 	{
 		__resetSeralizer();
@@ -99,7 +99,7 @@ class LocalConnection extends EventDispatcher{
 		messageBuffer.addBytes(serializationBytes, 0, serializationBytes.length);
 
 		var messageBytes:Bytes = messageBuffer.getBytes();
-		//trace("Attempt to send: " + message);
+		// trace("Attempt to send: " + message);
 
 		// Connects to the outbound pipe
 
@@ -114,11 +114,11 @@ class LocalConnection extends EventDispatcher{
 			status = __write(__outboundPipe, messageBytes.getData(), messageBytes.length);
 		}
 
-		//trace("Send message status is: " + (status ? "Success" : "Failure"));
+		// trace("Send message status is: " + (status ? "Success" : "Failure"));
 		var level:String = status ? "status" : "error";
 
 		dispatchEvent(new StatusEvent(StatusEvent.STATUS, false, false, "0", level));
-		//__close(pipe);
+		// __close(pipe);
 
 		// Update last sent time
 		__lastSentTime = Sys.time();
@@ -130,31 +130,35 @@ class LocalConnection extends EventDispatcher{
 		}
 	}
 
-    public function allowDomain(?domains:Array<String>):Void {
-        Lib.notImplemented("LocalConnection.allowDomain");
-    }
+	public function allowDomain(?domains:Array<String>):Void
+	{
+		Lib.notImplemented("LocalConnection.allowDomain");
+	}
 
-    public function allowInsecureDomain(?domains:Array<String>):Void {
-        Lib.notImplemented("LocalConnection.allowInsecureDomain");
-    }
+	public function allowInsecureDomain(?domains:Array<String>):Void
+	{
+		Lib.notImplemented("LocalConnection.allowInsecureDomain");
+	}
 
-    public static function get_isSupported():Bool {
-        #if (cpp && windows)
-        return true;
-        #else
-        return false;
-        #end
-    }
+	public static function get_isSupported():Bool
+	{
+		#if (cpp && windows)
+		return true;
+		#else
+		return false;
+		#end
+	}
 
-	 /** Resets our serializer internally */
-	@:noCompeltion private inline function __resetSeralizer():Void{
+	/** Resets our serializer internally */
+	@:noCompeltion private inline function __resetSeralizer():Void
+	{
 		__serializer.buf = new StringBuf();
 		__serializer.shash.clear();
 		__serializer.cache = [];
 		__serializer.scount = 0;
 	}
 
-  	 /** Starts the timeout check (but does not hold a strong reference) */
+	/** Starts the timeout check (but does not hold a strong reference) */
 	@:noCompletion private function __startTimeoutCheck():Void
 	{
 		if (__outboundTimeout != null) return; // Prevent multiple timers
@@ -170,7 +174,7 @@ class LocalConnection extends EventDispatcher{
 			var elapsed:Float = Sys.time() - __lastSentTime;
 			if (elapsed >= TIME_OUT / 1000)
 			{
-				//trace("Timeout expired. Closing outbound pipe.");
+				// trace("Timeout expired. Closing outbound pipe.");
 				__close(__outboundPipe);
 				__outboundPipe = null;
 			}
@@ -179,7 +183,7 @@ class LocalConnection extends EventDispatcher{
 		// Stop the timer if there’s no active pipe
 		if (__outboundPipe == null && __outboundTimeout != null)
 		{
-			//trace("No active pipe, stopping timeout checks.");
+			// trace("No active pipe, stopping timeout checks.");
 			__outboundTimeout.stop();
 			__outboundTimeout = null; // Allow garbage collection
 			return;
@@ -188,8 +192,8 @@ class LocalConnection extends EventDispatcher{
 		// Continue checking if still active
 		__outboundTimeout = Timer.delay(() -> __checkTimeout(), 5000);
 	}
-    
-   /** Writes data to a named pipe */
+
+	/** Writes data to a named pipe */
 	@:noCompletion private static function __write(pipe:HANDLE, data:BytesData, size:Int):Bool
 	{
 		return NativeLocalConnection.__write(pipe, Pointer.ofArray(data), size);
@@ -242,9 +246,11 @@ class LocalConnection extends EventDispatcher{
 		__worker = new BackgroundWorker();
 		var handleQueue:Deque<HANDLE> = new Deque();
 
-		__worker.doWork.add((name:String)->{
+		__worker.doWork.add((name:String) ->
+		{
 			var handle:HANDLE = null;
-			try{
+			try
+			{
 				handle = __createInboundPipe(name);
 				handleQueue.add(handle);
 			}
@@ -278,21 +284,22 @@ class LocalConnection extends EventDispatcher{
 		}
 
 		var offset:Int = 0;
-		try{
+		try
+		{
 			var methodLength:Int = received.getInt32(0);
-			//trace(methodLength);
+			// trace(methodLength);
 			offset += 4;
 
 			var method:String = received.getString(offset, methodLength);
 			offset += methodLength;
-			//trace(method);
+			// trace(method);
 
 			var serializationLength:Int = received.getInt32(offset);
 			offset += 4;
-			//trace(serializationLength);
+			// trace(serializationLength);
 
 			var serialization:String = received.getString(offset, serializationLength);
-			//trace(serialization);
+			// trace(serialization);
 
 			var args:Array<Dynamic> = Unserializer.run(serialization);
 
@@ -304,11 +311,11 @@ class LocalConnection extends EventDispatcher{
 		}
 
 		/*try{
-			Reflect.callMethod(client, client[method], args);
-		}
-		catch (e:Dynamic)
-		{
-			// De nada
+				Reflect.callMethod(client, client[method], args);
+			}
+			catch (e:Dynamic)
+			{
+				// De nada
 		}*/
 	}
 
@@ -322,7 +329,7 @@ class LocalConnection extends EventDispatcher{
 			// Accepts new clients
 			if (__accept(__inboundPipe))
 			{
-				//trace("New client connected!");
+				// trace("New client connected!");
 
 				// we store new client pipe
 				__clientPipes.push(__inboundPipe);
@@ -343,30 +350,34 @@ class LocalConnection extends EventDispatcher{
 					// Check if the pipe is still valid?
 					if (!__isOpen(pipe))
 					{
-						//trace("Client disconnected. Removing handle.");
+						// trace("Client disconnected. Removing handle.");
 						__clientPipes.splice(i, 1); // Remove client from the list
 					}
 				}
 				else if (available > 0)
 				{
-					if (available > BUFFER_SIZE){
+					if (available > BUFFER_SIZE)
+					{
 						var largeMessageBuffer:BytesBuffer = new BytesBuffer();
 						var bytesRemaining:Int = available;
-						while (bytesRemaining > 0){
+						while (bytesRemaining > 0)
+						{
 							if (__read(pipe, buffer.getData(), BUFFER_SIZE) == 0)
 							{
-								var length:Int = bytesRemaining > BUFFER_SIZE ? BUFFER_SIZE : bytesRemaining;	
+								var length:Int = bytesRemaining > BUFFER_SIZE ? BUFFER_SIZE : bytesRemaining;
 								bytesRemaining -= length;
-								largeMessageBuffer.addBytes(buffer, 0, length); 
-							}							
+								largeMessageBuffer.addBytes(buffer, 0, length);
+							}
 						}
 						__onData(largeMessageBuffer.getBytes());
-					}else {					
+					}
+					else
+					{
 						// Read theavailable data
 						if (__read(pipe, buffer.getData(), BUFFER_SIZE) == 0)
 						{
 							var received:Bytes = buffer;
-							//trace("Received: " + received);
+							// trace("Received: " + received);
 							__onData(received);
 						}
 					}
@@ -375,7 +386,7 @@ class LocalConnection extends EventDispatcher{
 				i--; // Moves to the previous index
 			}
 
-			//Application seems to lock up without sleep
+			// Application seems to lock up without sleep
 			Sys.sleep(0);
 		}
 	}
