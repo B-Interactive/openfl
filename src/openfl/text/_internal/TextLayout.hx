@@ -186,7 +186,7 @@ class TextLayout
 			__hbBuffer.clusterLevel = HBBufferClusterLevel.CHARACTERS;
 
 			#if haxe4
-			#if (lime >= version("8.3.0"))
+			#if (lime >= "8.3.0")
 			__hbBuffer.addString(text, 0, -1);
 			#elseif (neko || (cpp && disable_unicode_strings))
 			__hbBuffer.addUTF8(text, 0, -1);
