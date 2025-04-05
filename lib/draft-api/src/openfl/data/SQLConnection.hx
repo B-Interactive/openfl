@@ -1,19 +1,28 @@
 package openfl.data;
+import openfl.utils.Function;
 import openfl.utils.Object;
 import openfl.errors.ArgumentError;
 import openfl.errors.IOError;
+import openfl.errors.SQLError;
+import openfl.events.Event;
 import openfl.events.EventDispatcher;
+import openfl.events.SQLErrorEvent;
+import openfl.events.SQLEvent;
 import openfl.utils.ByteArray;
-import openfl.filesystem.File;
+import openfl.FileSystem.File;
+import lime.system.BackgroundWorker;
+import sys.FileSystem;
 import sys.db.Connection;
 import sys.db.ResultSet;
 import sys.db.Sqlite;
 import sys.thread.Deque;
+import sys.thread.Mutex;
 
 /**
  * ...
  * @author Christopher Speciale
  */
+@:access(openfl.data.SQLStatement)
 class SQLConnection extends EventDispatcher
 {
 	public static inline var isSupported:Bool =
@@ -33,32 +42,307 @@ class SQLConnection extends EventDispatcher
 	private var __totalChanges:Float = 0;
 	private var __lasInsertRowID:Float = 0;
 	private var __inTransaction:Bool = false;
+	private var __async:Null<Bool>;
+	private var __reference:String;
+	private var __initAutoCompact:Bool;
+	private var __initPageSize:UInt;
 
 	@:noCompletion private var __connection:Connection;
 	private var __openMode:SQLMode;
+
+	private var __sqlWorker:BackgroundWorker;
+	private var __sqlQueue:Deque<Function>;
+	private var __sqlMutex:Mutex;
 
 	public function new()
 	{
 		super();
 	}
 
+	private function __onSQLWorkerComplete(message:Dynamic):Void
+	{
+
+	}
+
+	private function __onSQLWorkerError(message:Dynamic<>):Void
+	{
+
+	}
+
+	private function __onSQLWorkerProgress(message:Dynamic):Void
+	{
+		if (Std.isOfType(message, SQLEvent)){
+			var evt:SQLEvent = message;
+			__dispatchEvent(evt);
+		} else {
+			var obj:Object = message;
+			
+			var type:Int = obj.type;
+			var statement:SQLStatement = obj.statement;
+			var event:Event = obj.event;
+			var prefetch:Int = obj.prefetch;
+			statement.__prefetch = prefetch;
+			
+			if(type == 0){
+				
+				
+				var results:ResultSet = obj.results;
+				
+			
+				statement.__resultSet = results;
+				
+				statement.__queueResult();
+				
+			} else {
+				var executing:Bool = obj.executing;
+				if (executing){
+					statement.__queueResult();
+				}
+			}
+			
+			statement.__dispatchEvent(event);
+		}
+	}
+
+	private function __initSQLWorker():Void
+	{
+		__sqlMutex = new Mutex();
+		__sqlQueue = new Deque();
+		__sqlWorker = new BackgroundWorker();
+		__sqlWorker.onComplete.add(__onSQLWorkerComplete);
+		__sqlWorker.onError.add(__onSQLWorkerError);
+		__sqlWorker.onProgress.add(__onSQLWorkerProgress);
+		__sqlWorker.doWork.add(__sqlWork);
+		__sqlWorker.run();
+
+	}
+
+	private function __sqlWork(m:Dynamic):Void
+	{
+		while (!__sqlWorker.canceled)
+		{
+			var job:Function = __sqlQueue.pop(true);
+			job();
+		}
+	}
+	
+	private function __addToQue(job:Function):Void{
+		__sqlMutex.acquire();
+		__sqlQueue.add(job);
+		__sqlMutex.release;
+	}
+
+	public function analyze():Void
+	{
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__analyzeAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.request("ANALYZE;");
+			__dispatchSQLEvent(SQLEvent.ANALYZE);
+		}
+	}
+
+	private function __analyzeAsync():Void
+	{
+		var event:Event;
+
+		try{
+			__connection.request("ANALYZE;");
+			event = new SQLEvent(SQLEvent.ANALYZE);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.ANALYZE, e, "Execution failed"));
+		}
+
+		__sqlWorker.sendProgress(event);
+	}
+
+	public function begin(options:String = null):Void
+	{
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__beginAsync(options));
+			__sqlMutex.release;
+		}
+		else {
+			__connection.startTransaction();
+			__dispatchSQLEvent(SQLEvent.BEGIN);
+		}
+
+	}
+
+	private function __beginAsync(options:String):Function
+	{
+		return function()
+		{
+			var event:Event;
+
+			try
+			{
+				__connection.startTransaction();
+				event = new SQLEvent(SQLEvent.BEGIN);
+			}
+			catch (e:Dynamic)
+			{
+				event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.BEGIN, e, "Execution failed"));
+			}
+			__sqlWorker.sendProgress(event);
+		}
+	}
+
+	public function deanalyze():Void
+	{
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(deanalyzeAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.close();
+			open(__reference, __openMode, __initAutoCompact, __initPageSize);
+		}
+
+		__dispatchSQLEvent(SQLEvent.DEANALYZE);
+	}
+
+	private function deanalyzeAsync():Void
+	{
+		var event:Event;
+
+		try{
+			__connection.close();
+			openAsync(__reference, __openMode, __initAutoCompact, __initPageSize);
+			event = new SQLEvent(SQLEvent.DEANALYZE);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.DEANALYZE, "Execution failed"));
+		}
+		__sqlWorker.sendProgress(event);
+	}
+
+	public function cancel():Void
+	{
+		if (__async)
+		{
+			__sqlWorker.cancel();
+
+			__sqlMutex.acquire();
+			__sqlQueue = new Deque();
+			__sqlMutex.release();
+		}
+
+		__dispatchSQLEvent(SQLEvent.CANCEL);
+	}
+
 	public function close():Void
 	{
-		__connection.close();
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__closeAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.close();
+			__dispatchSQLEvent(SQLEvent.CLOSE);
+		}
+
+	}
+
+	private function __closeAsync():Void
+	{
+		var event:Event;
+
+		try{
+			__connection.close();
+			event = new SQLEvent(SQLEvent.CLOSE);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.CLOSE, "Execution failed"));
+		}
+		__sqlWorker.sendProgress(event);
 	}
 
 	public function commit():Void
 	{
-		__connection.commit();
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__commitAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.commit();
+			__dispatchSQLEvent(SQLEvent.COMMIT);
+		}
+	}
+
+	private function __commitAsync():Void
+	{
+		var event:Event;
+
+		try{
+			__connection.commit();
+			event = new SQLEvent(SQLEvent.COMMIT);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.COMMIT, "Execution failed"));
+		}
+		__sqlWorker.sendProgress(event);
 	}
 
 	public function compact():Void
 	{
-		__connection.request("VACUUM;");
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__compactAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.request("VACUUM;");
+			__dispatchSQLEvent(SQLEvent.COMPACT);
+		}
+	}
+
+	private function __compactAsync():Void
+	{
+		var event:Event;
+
+		try{
+			__connection.request("VACUUM;");
+			event = new SQLEvent(SQLEvent.COMPACT);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.COMPACT, "Execution failed"));
+		}
+		__sqlWorker.sendProgress(event);
 	}
 
 	public function open(reference:Object = null, openMode:SQLMode = CREATE, autoCompact:Bool = false, pageSize:Int = 1024):Void
 	{
+		__async = false;
+		__open(reference, openMode, autoCompact, pageSize);
+
+		__dispatchSQLEvent(SQLEvent.OPEN);
+	}
+
+	private function __open(reference:Object = null, openMode:SQLMode = CREATE, autoCompact:Bool = false, pageSize:Int = 1024):Void
+	{
+		__initAutoCompact = autoCompact;
+		__initPageSize = pageSize;
+
 		if (reference == null || reference == ":memory:")
 		{
 			__openMode = CREATE;
@@ -87,6 +371,8 @@ class SQLConnection extends EventDispatcher
 			else {
 				throw new ArgumentError("The reference argument is neither a String to a path or a File Object.");
 			}
+
+			__reference = file.nativePath;
 
 			switch (openMode)
 			{
@@ -117,6 +403,167 @@ class SQLConnection extends EventDispatcher
 		cacheSize = DEFAULT_CACHE_SIZE;
 	}
 
+	public function openAsync(reference:Object = null, openMode:SQLMode = CREATE, autoCompact:Bool = false, pageSize:Int = 1024):Void
+	{
+
+		__async = true;
+		__initSQLWorker();
+		__sqlMutex.acquire();
+		__sqlQueue.add(__openAsync(reference, openMode, autoCompact, pageSize));
+		__sqlMutex.release;
+	}
+
+	private function __openAsync(reference:Object = null, openMode:SQLMode = CREATE, autoCompact:Bool = false, pageSize:Int = 1024):Function
+	{
+		return function()
+		{
+			var event:Event;
+
+			try
+			{
+				__open(reference, openMode, autoCompact, pageSize);
+				event = new SQLEvent(SQLEvent.OPEN);
+			}
+			catch (e:Dynamic)
+			{
+				event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.OPEN, "Execution failed"));
+			}
+			__sqlWorker.sendProgress(event);
+		}
+	}
+
+	public function releaseSavepoint(name:String = null):Void
+	{
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__releaseSavePointAsync(name));
+			__sqlMutex.release;
+		}
+		else {
+			__connection.request('RELEASE $name;');
+			__dispatchSQLEvent(SQLEvent.RELEASE_SAVEPOINT);
+		}
+	}
+
+	private function __releaseSavePointAsync(name:String):Function
+	{
+		return function()
+		{
+			var event:Event;
+
+			try
+			{
+				__connection.request('RELEASE $name;');
+				event = new SQLEvent(SQLEvent.RELEASE_SAVEPOINT);
+			}
+			catch (e:Dynamic)
+			{
+				event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.RELEASE_SAVEPOINT, "Execution failed"));
+			}
+			__sqlWorker.sendProgress(event);
+		}
+	}
+
+	public function rollback():Void
+	{
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(__rollbackAsync);
+			__sqlMutex.release;
+		}
+		else {
+			__connection.rollback();
+			__dispatchSQLEvent(SQLEvent.ROLLBACK);
+		}
+	}
+
+	private function __rollbackAsync():Void
+	{
+		var event:Event;
+
+		try
+		{
+			__connection.rollback();
+			event = new SQLEvent(SQLEvent.ROLLBACK);
+		}
+		catch (e:Dynamic)
+		{
+			event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.ROLLBACK, "Execution failed"));
+		}
+		__sqlWorker.sendProgress(event);
+	}
+
+	public function rollbackToSavepoint(name:String = null):Void
+	{
+		if (name == null)
+		{
+			rollback();
+			return;
+		}
+
+		if (__async)
+		{
+			__sqlMutex.acquire();
+			__sqlQueue.add(rollbackToSavepointAsync(name));
+			__sqlMutex.release;
+		}
+		else {
+			__connection.request('ROLLBACK TO $name;');
+			__dispatchSQLEvent(SQLEvent.ROLLBACK_TO_SAVEPOINT);
+		}
+	}
+
+	private function rollbackToSavepointAsync(name:String):Function
+	{
+		return function()
+		{
+			var event:Event;
+
+			try
+			{
+				__connection.request('ROLLBACK TO $name;');
+				event = new SQLEvent(SQLEvent.ROLLBACK_TO_SAVEPOINT);
+			}
+			catch (e:Dynamic)
+			{
+				event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.ROLLBACK_TO_SAVEPOINT, "Execution failed"));
+			}
+			__sqlWorker.sendProgress(event);
+		}
+	}
+
+	public function setSavepoint(name:String = null):Void
+	{
+		if (__async){
+			__sqlMutex.acquire();
+			__sqlQueue.add(__setSavepointAsync(name));
+			__sqlMutex.release;
+		} else {
+			__connection.request('SAVEPOINT $name;');
+			__dispatchSQLEvent(SQLEvent.SET_SAVEPOINT);
+		}
+		
+	}
+	
+	private function __setSavepointAsync(name:String):Function{
+		return function(){
+			var event:Event;
+
+			try
+			{
+				__connection.request('SAVEPOINT $name;');
+				event = new SQLEvent(SQLEvent.SET_SAVEPOINT);
+			}
+			catch (e:Dynamic)
+			{
+				event = new SQLErrorEvent(SQLErrorEvent.ERROR, new SQLError(SQLEvent.SET_SAVEPOINT, "Execution failed"));
+			}
+			__sqlWorker.sendProgress(event);
+		}
+	}
+	
 	private function __createConnection(path:String):Void
 	{
 		try{
@@ -130,8 +577,15 @@ class SQLConnection extends EventDispatcher
 
 	private function get_autoCompact():Bool
 	{
-		var result:ResultSet = __connection.request("PRAGMA auto_vacuum;");
-
+		var result:ResultSet;
+		if (__async){
+			__sqlMutex.acquire();
+			result = __connection.request("PRAGMA auto_vacuum;");
+			__sqlMutex.release();
+		} else {
+			result = __connection.request("PRAGMA auto_vacuum;");
+		}
+		
 		if (result.hasNext())
 		{
 			var autoVacuum:Int = result.next().auto_vacuum;
@@ -220,6 +674,11 @@ class SQLConnection extends EventDispatcher
 		return 0;
 	}
 
+	private function __dispatchSQLEvent(type:String):Void
+	{
+		__dispatchEvent(new SQLEvent(type));
+	}
+	
 	private function __getTables(): Array<String>
 	{
 		var result:ResultSet = __connection.request("SELECT name FROM sqlite_master WHERE type = 'table';");
@@ -230,158 +689,4 @@ class SQLConnection extends EventDispatcher
 		}
 		return tables;
 	}
-}
-
-enum abstract SQLMode(String) from String to SQLMode
-{
-	var CREATE:String = "create";
-	var READ:String = "read";
-	var UPDATE:String = "update";
-}
-
-@:access(crossbyte.db.SQLConnection)
-class SQLStatement extends EventDispatcher
-{
-
-	public var executing(get, null):Bool;
-	public var itemClass:Class<Dynamic>;
-	public var parameters(get, null):Object;
-	public var sqlConnection(default, set):SQLConnection;
-	public var text:String;
-
-	private var __executing:Bool = false;
-	private var __connection:Connection;
-	private var __resultSet:ResultSet;
-	private var __prefetch:Int = 0;
-	private var __resultQueue:Deque<Array<String>>;
-
-	public function new()
-	{
-		super();
-		parameters = new Object();
-		__resultQueue = new Deque();
-	}
-
-	public function cancel():Void
-	{
-		if(executing){
-			__executing = false;
-			__prefetch = 0;
-			__resultQueue = new Deque();
-			__resultSet = null;
-			text = "";
-			clearParameters();
-		}
-	}
-
-	public function clearParameters():Void
-	{
-		parameters = new Object();
-	}
-
-	public function execute(prefetch:Int = -1):Void
-	{
-		__executing = true;
-		
-		for (parameter in parameters){
-			__connection.addValue(cast parameter, Reflect.field(parameters, parameter));
-		}
-		
-		__resultSet = __connection.request(text);
-		__queueResult();
-		text = "";
-	}
-
-	private function __queueResult():Void
-	{
-		var results:Array<String> = [];
-		
-		if (__prefetch == -1)
-		{
-			while (__resultSet.hasNext())
-			{
-				results.push(__resultSet.next());
-			}
-			__resultQueue.push(results);
-			__executing = false;
-		}
-		else if (__prefetch > 0)
-		{
-			for (i in 0...__prefetch)
-			{
-				if (__resultSet.hasNext())
-				{
-					results.push(__resultSet.next());
-				}
-				else
-				{
-					__executing = false;
-					break;
-				}
-			}
-			__resultQueue.push(results);
-		}
-		__prefetch = 0;
-	}
-	
-	public function getResult():SQLResult
-	{
-		var results:Array<String> = __resultQueue.pop(false);
-		var complete:Bool = !__executing;
-		
-		if (results != null){
-			var sqlResult:SQLResult = new SQLResult(results, __resultSet.length, complete, __connection.lastInsertId());
-
-			return sqlResult;
-		}		
-		
-		return null;
-	}
-
-	public function next(prefetch:Int = -1):Void
-	{
-		__prefetch = prefetch;
-		
-		if (__resultSet.hasNext())
-		{
-			__queueResult();
-		} else {
-			__executing = false;
-			__prefetch = 0;
-		}
-	}
-	private function get_executing():Bool
-	{
-		return __executing;
-	}
-
-	private function get_parameters():Object
-	{
-		return null;
-	}
-
-	private function set_sqlConnection(value:SQLConnection):SQLConnection
-	{
-		__connection = value.__connection;
-		return sqlConnection = value;
-	}
-
-}
-
-class SQLResult 
-{
-
-	public var complete(default, null):Bool;
-	public var data(default, null):Array<String>;
-	public var lastInsertRowID(default, null):Float;
-	public var rowsAffected(default, null):Float;
-	
-	public function new(data:Array<String> = null, rowsAffected:Float = 0, complete:Bool = true, rowID:Float = 0) 
-	{
-		this.data = data;
-		this.rowsAffected = rowsAffected;
-		this.complete = complete;
-		this.lastInsertRowID = rowID;
-	}
-	
 }
