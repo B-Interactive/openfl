@@ -602,6 +602,31 @@ extern "C" int video_get_video_position()
 	return (int)(currentVideoPosition / 10000); // ms
 }
 
+void video_frames_seek_to(int targetMs)
+{
+    if (!reader) return;
+
+    LONGLONG seekTime = static_cast<LONGLONG>(targetMs) * 10000;
+
+    PROPVARIANT prop;
+    PropVariantInit(&prop);
+    prop.vt = VT_I8;
+    prop.hVal.QuadPart = seekTime;
+
+    // seek to nearest keyframe at or before the requested time
+    HRESULT hr = reader->SetCurrentPosition(GUID_NULL, prop);
+
+    PropVariantClear(&prop);
+
+    if (FAILED(hr)) {
+        printf("video_seek_to_ms: Seek failed (hr=0x%08x)\n", hr);
+        return;
+    }
+
+    currentVideoPosition = seekTime;
+	currentAudioPosition = seekTime;
+}
+
 void yuv_to_rgb_pixel(unsigned char y, unsigned char u, unsigned char v, unsigned char& r, unsigned char& g, unsigned char& b)
 {
 	int c = y - 16;
