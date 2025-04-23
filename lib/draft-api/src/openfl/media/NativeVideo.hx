@@ -1,40 +1,34 @@
 package openfl.media;
 
-import lime.media.openal.ALContext;
 import lime.media.AudioManager;
-import openfl.media._internal.NativeVideoUtil;
 #if (cpp && windows)
-import lime.media.openal.AL;
-import lime.media.openal.ALSource;
-import lime.media.openal.ALBuffer;
-import lime.media.openal.ALC;
-import haxe.atomic.AtomicBool;
-import haxe.ds.Vector;
-import lime.system.BackgroundWorker;
-import haxe.io.UInt16Array;
-import lime.media.AudioBuffer;
-import lime.media.AudioSource;
-import openfl.media._internal.GLUtil;
-import cpp.Pointer;
-import haxe.io.Bytes;
-import haxe.io.BytesData;
-import lime.utils.Float32Array;
-import lime.utils.UInt16Array;
-import lime.utils.UInt8Array;
-import openfl.Lib;
-import openfl.display.Bitmap;
-import openfl.display.BitmapData;
-import openfl.display3D.Context3D;
-import openfl.display3D.IndexBuffer3D;
-import openfl.display3D.Program3D;
-import openfl.display3D.VertexBuffer3D;
-import openfl.display3D.textures.RectangleTexture;
-import openfl.events.Event;
-import openfl.geom.Rectangle;
-import openfl.media._internal.NativeVideoBackend;
-import sys.thread.Deque;
-import sys.thread.Mutex;
-import sys.thread.Semaphore;
+	import lime.media.openal.AL;
+	import lime.media.openal.ALSource;
+	import lime.media.openal.ALBuffer;
+	import haxe.atomic.AtomicBool;
+	import haxe.ds.Vector;
+	import lime.system.BackgroundWorker;
+	import lime.media.AudioSource;
+	import openfl.media._internal.GLUtil;
+	import cpp.Pointer;
+	import haxe.io.Bytes;
+	import haxe.io.BytesData;
+	import lime.utils.Float32Array;
+	import lime.utils.UInt16Array;
+	import lime.utils.UInt8Array;
+	import openfl.Lib;
+	import openfl.display.Bitmap;
+	import openfl.display.BitmapData;
+	import openfl.display3D.Context3D;
+	import openfl.display3D.IndexBuffer3D;
+	import openfl.display3D.Program3D;
+	import openfl.display3D.VertexBuffer3D;
+	import openfl.display3D.textures.RectangleTexture;
+	import openfl.events.Event;
+	import openfl.geom.Rectangle;
+	import openfl.media._internal.NativeVideoBackend;
+	import sys.thread.Deque;
+	import sys.thread.Mutex;
 #end
 
 /**
@@ -92,6 +86,21 @@ class NativeVideo extends Bitmap
 	 */
 	public var currentTime(get, set):Float;
 
+	public var duration(get, never):Float;
+
+	/**
+	 * The `SoundTransform` object applied to the audio stream of the video.
+	 *
+	 * This controls properties such as volume and panning for the current playback session.
+	 * Setting this allows you to adjust audio playback behavior dynamically (e.g., muting,
+	 * changing volume, or applying stereo panning).
+	 *
+	 * The transformation is applied globally to all audio data being played by this media instance.
+	 *
+	 * @see openfl.media.SoundTransform
+	 */
+	public var soundTransform(get, set):SoundTransform;
+
 	@:noCompletion private inline function get_isPlaying():Bool
 	{
 		return __isPlaying.load();
@@ -106,6 +115,31 @@ class NativeVideo extends Bitmap
 	{
 		__skipTo(Std.int(value * 1000));
 		return value;
+	}
+
+	@:noCompletion private inline function get_duration():Float
+		{
+			return __videoDuration * 0.001;
+		}
+
+	@:noCompletion private inline function set_soundTransform(value:SoundTransform):SoundTransform
+	{
+		#if (cpp && windows)
+		if (__alSource != null)
+		{			
+			inline AL.sourcef(__alSource, AL.GAIN, value.volume);
+
+			var pan = value.pan;
+			inline AL.source3f(__alSource, AL.POSITION, pan, 0, 0);
+		}
+		#end
+
+		return __soundTransform = value;
+	}
+
+	@:noCompletion private inline function get_soundTransform():SoundTransform
+	{
+		return __soundTransform;
 	}
 
 	#if (cpp && windows)
@@ -155,11 +189,9 @@ class NativeVideo extends Bitmap
 	@:noCompletion private var __timerThread:BackgroundWorker;
 	@:noCompletion private var __frameBuffers:Vector<BitmapData>;
 	@:noCompletion private var __audioWritten:Int;
-
+	@:noCompletion private var __decoderThread:BackgroundWorker = new BackgroundWorker();
 	@:noCompletion private var __currentTime:Float = 0.0;
-
-	// @:noCompletion private var __audioLock:Semaphore;
-	// @:noCompletion private var __mutex:Mutex;
+	@:noCompletion private var __soundTransform:SoundTransform;
 
 	/**
 	 * Creates a new NativeVideo instance.
@@ -184,6 +216,7 @@ class NativeVideo extends Bitmap
 
 		__textureWidth = width;
 		__textureHeight = height;
+		__soundTransform = new SoundTransform();
 	}
 
 	/**
@@ -228,8 +261,7 @@ class NativeVideo extends Bitmap
 			__createProgram();
 			this.bitmapData = BitmapData.fromTexture(__videoTexture);
 		}
-		else
-		{
+		else {
 			__frameRect = new Rectangle(0, 0, __videoWidth, __videoHeight);
 
 			var bmd:BitmapData = new BitmapData(__videoWidth, __videoHeight, false, 0x0);
@@ -245,11 +277,6 @@ class NativeVideo extends Bitmap
 		}
 
 		__loadMetaData();
-
-		/* 		var multiplier:Int = 8;
-			var sampleCount:Int = 1024 * multiplier;
-			var byteLength:Int = sampleCount * 2 * __audioChannels;
-			__sampleBuffer = Bytes.alloc(byteLength); */
 
 		__setupAL();
 		__setupBuffers();
@@ -283,15 +310,11 @@ class NativeVideo extends Bitmap
 		__setPlayingState(false);
 	}
 
-	/**
-	 * 
-	**/
-	@:noCompletion private #if !debug inline #end function __setPlayingState(value:Bool):Void
-	{
-		__isPlaying.exchange(value);
-	}
+	@:noCompletion private #if !debug inline #end function __setPlayingState(value:Bool):Void {
+			__isPlaying.exchange(value);
+		}
 
-	@:noCompletion private function __setupAL():Void
+		@:noCompletion private function __setupAL():Void
 	{
 		// var alObj = NativeVideoUtil.setupAL(AUDIO_BUFFER_COUNT);
 		// __alAudioBuffers = alObj.buffers;
@@ -327,55 +350,6 @@ class NativeVideo extends Bitmap
 		return playbackTime;
 	}
 
-	/*var currentTime:Float = 0.0;
-		var t:Float = 0.0;
-		@:noCompletion private function __onAudioPlayback():Void
-
-		{
-
-			if (!isPlaying)
-			{
-				trace('is not playing');
-				return;
-			}
-
-			while (!__audioBufferReady[__audioBufferReadIndex].load())
-			{
-				trace('what');
-				Sys.sleep(0.001);
-				trace("underrun");
-			}
-
-			var sampleBuffer = __audioBuffers[__audioBufferReadIndex];
-			__audioBufferReady[__audioBufferReadIndex].exchange(false);
-
-			var audioBuf = new AudioBuffer();
-			audioBuf.bitsPerSample = __audioBitsPerSample;
-			audioBuf.channels = __audioChannels;
-			audioBuf.sampleRate = __audioSampleRate;
-			audioBuf.data = UInt8Array.fromBytes(sampleBuffer);
-
-			var sound:Sound = Sound.fromAudioBuffer(audioBuf);
-			var sc:SoundChannel = sound.play();
-			//__audioSource.buffer = audioBuf;
-			//__audioSource.length = Std.int(__secondsPerBuffer * 1000);
-			//@:privateAccess
-			//__audioSource.init();
-			//__audioSource = new AudioSource(audioBuf);
-			//__audioSource.onComplete.add(__onAudioPlayback);
-			//__audioSource.play();
-
-			currentTime += __secondsPerBuffer;
-			//trace(currentTime, __secondsPerBuffer);
-			NativeVideoUtil.delay(__onAudioPlayback, __secondsPerBuffer, __audioCallbackQueue);
-			//sc.addEventListener(Event.SOUND_COMPLETE, __onAudioPlayback);
-
-			__audioBufferReadIndex = (__audioBufferReadIndex + 1) % AUDIO_BUFFER_COUNT;
-			trace(NativeVideoUtil.timestamp() - t, __secondsPerBuffer);
-			t = NativeVideoUtil.timestamp();
-	}*/
-	private var __decoderThread:BackgroundWorker = new BackgroundWorker();
-
 	@:noCompletion private function __setupThreads():Void
 	{
 		__audioThread = new BackgroundWorker();
@@ -387,7 +361,6 @@ class NativeVideo extends Bitmap
 	@:noCompletion private function __runThreads():Void
 	{
 		__runAudioThread();
-		__runDecoderThread();
 	}
 
 	@:noCompletion private function __fillBuffer(index:Int):Bool
@@ -437,7 +410,7 @@ class NativeVideo extends Bitmap
 		__alAudioBuffers = inline AL.genBuffers(AUDIO_BUFFER_COUNT);
 	}
 
-	@:noCompletion private function __runDecoderThread():Void
+	@:noCompletion private function __runAudioThread():Void
 	{
 		__alSource = inline AL.createSource();
 		__alAudioBuffers = [];
@@ -462,11 +435,11 @@ class NativeVideo extends Bitmap
 		}
 
 		__prefillAudioBuffers();
-
+		//TODO this, not here please
+		soundTransform = __soundTransform;
 		@:inline AL.sourcePlay(__alSource);
-
-		__audioThread.doWork.add((_) ->
-		{
+		
+		__audioThread.doWork.add((_) -> {
 			while (isPlaying)
 			{
 				var state = inline AL.getSourcei(__alSource, AL.SOURCE_STATE);
@@ -518,61 +491,6 @@ class NativeVideo extends Bitmap
 		}
 
 		__prefillAudioBuffers();
-	}
-
-	@:noCompletion private function __runAudioThread():Void
-	{
-		/*var bufferWriteIndex = 0;
-
-			__audioThread.doWork.add((_) -> {
-				//__audioSource = new AudioSource(null);
-
-				__onAudioPlayback();
-				//__audioSource.onComplete.add(__onAudioPlayback);
-
-				while (isPlaying)
-				{
-					var playAudioCallback:Void->Void = __audioCallbackQueue.pop(false);
-					if (playAudioCallback != null)
-					{
-						playAudioCallback();
-					}
-
-					if (__audioBufferReady[bufferWriteIndex].load())
-					{
-						//avoids spinning if not consumed
-						Sys.sleep(0.001);
-						continue;
-					}
-					//trace(bufferWriteIndex);
-					var sampleBuffer:Bytes = __audioBuffers[bufferWriteIndex];
-					var written:Int = __videoGetAudioSamples(sampleBuffer);
-
-					if (written > 0)
-					{
-						__audioWritten = written;
-						// TODO: Consolidate Atomic Bool with an abstract to avoid this mess
-						#if (neko || (hl && hl_ver < "1.13"))
-						__audioBufferReadyMutex.acquire();
-						#end
-
-						__audioBufferReady[bufferWriteIndex].exchange(true);
-
-						#if (neko || (hl && hl_ver < "1.13"))
-						__audioBufferReadyMutex.release();
-						#end
-
-						bufferWriteIndex = (bufferWriteIndex + 1) % AUDIO_BUFFER_COUNT;
-					}
-					else
-					{
-						__setPlayingState(false);
-						break;
-					}
-				}
-			});
-
-			__audioThread.run(); */
 	}
 
 	@:noCompletion private function __loadMetaData():Void
@@ -700,44 +618,16 @@ class NativeVideo extends Bitmap
 			var videoBufferLength:Int = Std.int(product * 1.5);
 			__videoBuffer = Bytes.alloc(videoBufferLength);
 		}
-		else
-		{
+		else {
 			// video gl buffers!
 		}
 
-		__audioBuffers = new Vector(AUDIO_BUFFER_COUNT);
-		__audioBufferReady = new Vector(AUDIO_BUFFER_COUNT);
-
-		var bufferSize:Int = AUDIO_BUFFER_SIZE;
 		var bytesPerSample:Int = __audioBitsPerSample >> 3;
 
 		var bytesPerFrame:Int = bytesPerSample * __audioChannels;
-		var totalFrames = bufferSize / bytesPerFrame;
+		var totalFrames = AUDIO_BUFFER_SIZE / bytesPerFrame;
 
-		// var samplesPerMs:Float = __audioSampleRate / 1000.0;
-
-		// var rawSamples:Float = samplesPerMs * targetBufferDurationMs;
-		// var samplesPerBuffer:Int = Std.int(rawSamples);
-
-		// samplesPerBuffer = 512;// (samplesPerBuffer + 4095) & ~4095;
-		// (samplesPerBuffer);
 		__secondsPerBuffer = totalFrames / __audioSampleRate;
-		trace(__secondsPerBuffer);
-		var byteLength:Int = bufferSize;
-		/*var multiplier:Int = 2;
-			var sampleCount:Int = 1024 * multiplier;
-			var byteLength:Int = sampleCount * 2 * __audioChannels;
-			//__sampleBuffer = Bytes.alloc(byteLength); */
-		/*for (i in 0...AUDIO_BUFFER_COUNT)
-			{
-				var sampleBuffer = Bytes.alloc(byteLength);
-				__videoGetAudioSamples(sampleBuffer);
-				__audioBuffers.set(i, sampleBuffer);
-
-				__audioBufferReady.set(i, new AtomicBool(true));
-
-		}*/
-		__audioBufferReadIndex = 0;
 	}
 
 	@:noCompletion private function __setupData():Void
@@ -745,9 +635,9 @@ class NativeVideo extends Bitmap
 		// Vertex positions (-1 to 1)
 		var posData = new Float32Array([
 			-1, -1,
-			 1, -1,
+			1, -1,
 			-1,  1,
-			 1,  1
+			1,  1
 		]);
 		__positions = __context.createVertexBuffer(4, 2);
 		__positions.uploadFromTypedArray(posData, 0);
@@ -898,7 +788,8 @@ class NativeVideo extends Bitmap
 		{
 			var yRow = y * width;
 			var uvRowIndex = (y >> 1);
-			if (uvRowIndex >= maxUVRows) continue; // prevent UV overflow
+			if (uvRowIndex >= maxUVRows)
+				continue; // prevent UV overflow
 
 			var uvRow = uvOffset + uvRowIndex * width;
 
