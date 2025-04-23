@@ -450,34 +450,39 @@ int video_get_audio_samples(unsigned char* outBuffer, int bytesLength)
 {
 	if (!reader) return -1;
 
+	static std::vector<uint8_t> leftover;
 	int totalCopied = 0;
 
-	while (totalCopied < bytesLength)
-	{
+	// === Copy from leftover first ===
+	while (totalCopied < bytesLength && !leftover.empty()) {
+		int toCopy = std::min((int)leftover.size(), bytesLength - totalCopied);
+		memcpy(outBuffer + totalCopied, leftover.data(), toCopy);
+		totalCopied += toCopy;
+		leftover.erase(leftover.begin(), leftover.begin() + toCopy);
+	}
+
+	// === Read and buffer new samples until full ===
+	while (totalCopied < bytesLength) {
 		IMFSample* sample = nullptr;
 		DWORD flags = 0;
 
 		HRESULT hr = reader->ReadSample(
-						 MF_SOURCE_READER_FIRST_AUDIO_STREAM,
-						 0, nullptr, &flags, nullptr, &sample
-					 );
+			MF_SOURCE_READER_FIRST_AUDIO_STREAM,
+			0, nullptr, &flags, nullptr, &sample
+		);
 
-		if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM))
-		{
+		if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
 			if (sample) sample->Release();
 			break;
 		}
 
 		if (!sample) break;
 
-		// === Get the timestamp ===
 		LONGLONG sampleTime = 0;
-		if (SUCCEEDED(sample->GetSampleTime(&sampleTime)))
-		{
+		if (SUCCEEDED(sample->GetSampleTime(&sampleTime))) {
 			currentAudioPosition = sampleTime;
 		}
 
-		// === Copy buffer ===
 		IMFMediaBuffer* buffer = nullptr;
 		hr = sample->ConvertToContiguousBuffer(&buffer);
 		sample->Release();
@@ -486,20 +491,23 @@ int video_get_audio_samples(unsigned char* outBuffer, int bytesLength)
 		BYTE* data = nullptr;
 		DWORD length = 0;
 		hr = buffer->Lock(&data, nullptr, &length);
-		if (FAILED(hr))
-		{
+		if (FAILED(hr)) {
 			buffer->Release();
 			break;
 		}
 
-		int bytesToCopy = std::min((int)length, bytesLength - totalCopied);
-		memcpy(outBuffer + totalCopied, data, bytesToCopy);
-		totalCopied += bytesToCopy;
+		// zopy as much as fits
+		int toCopy = std::min((int)length, bytesLength - totalCopied);
+		memcpy(outBuffer + totalCopied, data, toCopy);
+		totalCopied += toCopy;
+
+		// save leftover for next call
+		if (toCopy < (int)length) {
+			leftover.insert(leftover.end(), data + toCopy, data + length);
+		}
 
 		buffer->Unlock();
 		buffer->Release();
-
-		if (bytesToCopy < (int)length) break;
 	}
 
 	return totalCopied;
@@ -578,10 +586,10 @@ extern "C" int video_get_duration()
 	HRESULT hr = reader->GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE, MF_PD_DURATION, &var);
 	if (FAILED(hr)) return -1;
 
-	LONGLONG duration100ns = var.uhVal.QuadPart; // Duration in 100-nanosecond units
+	LONGLONG duration100ns = var.uhVal.QuadPart;
 	PropVariantClear(&var);
 
-	return (int)(duration100ns / 10000); // Return in milliseconds
+	return (int)(duration100ns / 10000);
 }
 
 extern "C" int video_get_audio_position()
