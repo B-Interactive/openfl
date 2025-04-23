@@ -412,7 +412,9 @@ extern "C" bool video_gl_update_frame()
 			// === UV plane ===
 			int uvWidth = frameWidth / 2;
 			int uvHeight = frameHeight / 2;
-			BYTE *uvPlane = scanline0 + (stride * frameHeight); // <- Fix here
+			int paddedHeight = (frameHeight + 15) & ~15;
+			
+			BYTE *uvPlane = scanline0 + (stride * paddedHeight);
 
 			static std::vector<BYTE> tightUV;
 			tightUV.resize(uvWidth * uvHeight * 2);
