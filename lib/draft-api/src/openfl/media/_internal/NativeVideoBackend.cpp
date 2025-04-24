@@ -413,7 +413,7 @@ extern "C" bool video_gl_update_frame()
 			int uvWidth = frameWidth / 2;
 			int uvHeight = frameHeight / 2;
 			int paddedHeight = (frameHeight + 15) & ~15;
-			
+
 			BYTE *uvPlane = scanline0 + (stride * paddedHeight);
 
 			static std::vector<BYTE> tightUV;
@@ -489,6 +489,23 @@ extern "C" void video_shutdown()
 		reader->Release();
 		reader = nullptr;
 	}
+
+	if (yTextureID != 0)
+	{
+		glDeleteTextures(1, &yTextureID);
+		yTextureID = 0;
+	}
+
+	if (uvTextureID != 0)
+	{
+		glDeleteTextures(1, &uvTextureID);
+		uvTextureID = 0;
+	}
+
+	frameWidth = 0;
+	frameHeight = 0;
+	currentAudioPosition = 0;
+	currentVideoPosition = 0;
 
 	MFShutdown();
 }
