@@ -109,7 +109,14 @@ class NativeVideo extends Bitmap {
 	}
 
 	@:noCompletion private inline function set_currentTime(value:Float):Float {
+		if (value < 0) {
+			value = 0;
+		} else if (value > duration) {
+			value = duration;
+		}
+
 		__skipTo(Std.int(value * 1000));
+		__processFrames();
 		return value;
 	}
 
@@ -270,9 +277,68 @@ class NativeVideo extends Bitmap {
 	/**
 	 * Unloads the current video and releases resources.
 	 */
-	public function unload():Void {
-		__unloadBuffers();
+	public function unload(dispose:Bool = false):Void {
+		stop();
+
 		__videoShutdown();
+
+		#if (cpp && windows)
+		if (dispose && __isHardware && __context != null) {
+			if (__videoTexture != null)
+				__videoTexture.dispose();
+			if (__textureY != null)
+				__textureY.dispose();
+			if (__textureUV != null)
+				__textureUV.dispose();
+			if (__program != null)
+				__program.dispose();
+			if (__positions != null)
+				__positions.dispose();
+			if (__uvs != null)
+				__uvs.dispose();
+			if (__indices != null)
+				__indices.dispose();
+
+			if (this.bitmapData != null) {
+				this.bitmapData.dispose();
+				this.bitmapData = null;
+			}
+		}
+		#end
+
+		#if (cpp && windows)
+		if (__alSource != null) {
+			inline AL.sourceStop(__alSource);
+			for (buf in __alAudioBuffers) {
+				if (buf != null)
+					inline AL.deleteBuffer(buf);
+			}
+			inline AL.deleteSource(__alSource);
+			__alSource = null;
+		}
+		__alAudioBuffers = null;
+		__audioBuffers = null;
+		__sampleBuffer = null;
+		#end
+
+		if (__audioThread != null)
+			__audioThread.cancel();
+		if (__videoThread != null)
+			__videoThread.cancel();
+		if (__timerThread != null)
+			__timerThread.cancel();
+		if (__decoderThread != null)
+			__decoderThread.cancel();
+
+		__audioThread = null;
+		__videoThread = null;
+		__timerThread = null;
+		__decoderThread = null;
+
+		__unloadBuffers();
+
+		__isPlaying.exchange(false);
+		__currentTime = 0;
 	}
 
 	/**
