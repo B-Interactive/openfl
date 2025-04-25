@@ -32,11 +32,32 @@
 #define GL_TEXTURE_SWIZZLE_RGBA 0x8E46
 #endif
 
+#ifndef GL_R8
+#define GL_R8 0x8229
+#endif
+
+#ifndef GL_RG8
+#define GL_RG8 0x822B
+#endif
+
+#ifndef GL_UNPACK_ROW_LENGTH
+#define GL_UNPACK_ROW_LENGTH 0x0CF2
+#endif
+
+typedef void (*PFNGLTEXSTORAGE2DPROC)(
+    GLenum target,
+    GLsizei levels,
+    GLenum internalformat,
+    GLsizei width,
+    GLsizei height
+);
+
 int clamp(int val, int minVal, int maxVal)
 {
 	return (val < minVal) ? minVal : (val > maxVal) ? maxVal
 													: val;
 }
+
 
 IMFSourceReader *reader = nullptr;
 unsigned char *pixelBuffer = nullptr;
@@ -48,6 +69,10 @@ GLuint uvTextureID = 0;
 
 LONGLONG currentAudioPosition = 0;
 LONGLONG currentVideoPosition = 0;
+
+bool supportsUnpackRowLength = false;
+
+PFNGLTEXSTORAGE2DPROC glTexStorage2D = nullptr;
 
 extern "C" unsigned int video_gl_get_texture_id_y()
 {
@@ -115,9 +140,79 @@ extern "C" int video_get_height(const char *path)
 	return SUCCEEDED(hr) ? static_cast<int>(h) : -1;
 }
 
+void detectGLCapabilities()
+{
+	const char* glVersion = (const char*)glGetString(GL_VERSION);
+	const char* glExtensions = (const char*)glGetString(GL_EXTENSIONS);
+
+	if (strstr(glExtensions, "GL_UNPACK_ROW_LENGTH") != nullptr || atof(glVersion) >= 3.0)
+	{
+		supportsUnpackRowLength = true;
+	}
+}
+
+void loadOpenGLExtensions()
+{
+    glTexStorage2D = (PFNGLTEXSTORAGE2DPROC)wglGetProcAddress("glTexStorage2D");
+
+    if (!glTexStorage2D)
+    {
+        printf("Warning: glTexStorage2D not available. Falling back to glTexImage2D.\n");
+    }
+}
+
 extern "C" bool video_init()
 {
+	loadOpenGLExtensions();
+	detectGLCapabilities();
 	return SUCCEEDED(MFStartup(MF_VERSION));
+}
+
+void initVideoTextures(int width, int height)
+{
+	frameWidth = width;
+	frameHeight = height;
+
+	int uvWidth = width / 2;
+	int uvHeight = height / 2;
+
+	if (yTextureID == 0)
+	{
+		glGenTextures(1, &yTextureID);
+		glBindTexture(GL_TEXTURE_2D, yTextureID);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		if (glTexStorage2D)
+		{
+			glTexStorage2D(GL_TEXTURE_2D, 1, GL_R8, width, height);
+		}
+		else
+		{
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, width, height, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+		}
+	}
+
+	if (uvTextureID == 0)
+	{
+		glGenTextures(1, &uvTextureID);
+		glBindTexture(GL_TEXTURE_2D, uvTextureID);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		if (glTexStorage2D)
+		{
+			glTexStorage2D(GL_TEXTURE_2D, 1, GL_RG8, uvWidth, uvHeight); // Immutable UV
+		}
+		else
+		{
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, uvWidth, uvHeight, 0, GL_RG, GL_UNSIGNED_BYTE, nullptr);
+		}
+	}
 }
 
 extern "C" bool video_gl_load(const char *path)
@@ -153,28 +248,7 @@ extern "C" bool video_gl_load(const char *path)
 	frameWidth = static_cast<int>(w);
 	frameHeight = static_cast<int>(h);
 
-	// Setup textures
-	if (yTextureID == 0)
-	{
-		glGenTextures(1, &yTextureID);
-		glBindTexture(GL_TEXTURE_2D, yTextureID);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, frameWidth, frameHeight, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
-	}
-
-	if (uvTextureID == 0)
-	{
-		glGenTextures(1, &uvTextureID);
-		glBindTexture(GL_TEXTURE_2D, uvTextureID);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RG, frameWidth / 2, frameHeight / 2, 0, GL_RG, GL_UNSIGNED_BYTE, nullptr);
-	}
+	initVideoTextures(frameWidth, frameHeight);
 
 	IMFMediaType *audioType = nullptr;
 	hr = MFCreateMediaType(&audioType);
@@ -237,10 +311,7 @@ extern "C" bool video_software_load(const char *path, unsigned char *externalBuf
 	if (SUCCEEDED(hr))
 	{
 		audioType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-		audioType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM); // Linear PCM
-		//	audioType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-		//	audioType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100); // Match your video or source
-		//	audioType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2); // Stereo
+		audioType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM); 
 
 		hr = reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, audioType);
 		audioType->Release();
@@ -259,7 +330,6 @@ extern "C" bool video_software_load(const char *path, unsigned char *externalBuf
 	frameWidth = static_cast<int>(w);
 	frameHeight = static_cast<int>(h);
 
-	// NV12 uses 1.5 bytes per pixel (Y plane + UV plane half-sized)
 	int requiredSize = frameWidth * frameHeight * 1.5;
 	if (bufferSize < requiredSize)
 	{
@@ -269,9 +339,6 @@ extern "C" bool video_software_load(const char *path, unsigned char *externalBuf
 	}
 
 	pixelBuffer = externalBuffer;
-
-	// if (width) *width = frameWidth;
-	// if (height) *height = frameHeight;
 
 	return true;
 }
@@ -318,19 +385,6 @@ extern "C" bool video_software_update_frame()
 	hr = buffer->Lock(&data, nullptr, &length);
 	// printf("Buffer Lock HRESULT: 0x%x, length: %u\n", hr, length);
 
-	/*	IMFMediaType* audioType = nullptr;
-		MFCreateMediaType(&audioType);
-		audioType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-		audioType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM); // 16-bit PCM
-		audioType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-		audioType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100); // or whatever is needed
-		audioType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2); // stereo
-		reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, audioType);
-		audioType->Release();*/
-
-	// BYTE* yPlane = data;
-	// BYTE* uvPlane = data + (frameWidth * frameHeight);
-
 	int requiredSize = frameWidth * frameHeight * 1.5; // NV12 size
 
 	if (SUCCEEDED(hr) && length >= requiredSize)
@@ -363,112 +417,103 @@ extern "C" bool video_gl_update_frame()
 	if (!reader)
 		return false;
 
-	IMFSample *sample = nullptr;
+	IMFSample* sample = nullptr;
 	DWORD flags = 0;
+
 	HRESULT hr = reader->ReadSample(
 		MF_SOURCE_READER_FIRST_VIDEO_STREAM,
 		0, nullptr, &flags, nullptr, &sample);
 
-	if (FAILED(hr))
-		return false;
-	if (flags & MF_SOURCE_READERF_ENDOFSTREAM)
+	if (FAILED(hr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM) || !sample)
 	{
-		if (sample)
-			sample->Release();
+		if (sample) sample->Release();
 		return false;
 	}
 
-	if (!sample)
-		return false;
-
-	IMFMediaBuffer *buffer = nullptr;
+	IMFMediaBuffer* buffer = nullptr;
 	hr = sample->ConvertToContiguousBuffer(&buffer);
 	sample->Release();
 	if (FAILED(hr) || !buffer)
 		return false;
 
-	IMF2DBuffer *buffer2D = nullptr;
+	IMF2DBuffer* buffer2D = nullptr;
 	hr = buffer->QueryInterface(IID_PPV_ARGS(&buffer2D));
-
-	if (SUCCEEDED(hr) && buffer2D != nullptr)
+	if (FAILED(hr) || !buffer2D)
 	{
-		BYTE *scanline0 = nullptr;
-		LONG stride = 0;
-		hr = buffer2D->Lock2D(&scanline0, &stride);
-
-		if (SUCCEEDED(hr))
-		{
-			// === Y plane ===
-			static std::vector<BYTE> tightY;
-			tightY.resize(frameWidth * frameHeight);
-
-			for (int row = 0; row < frameHeight; row++)
-			{
-				BYTE *src = scanline0 + row * stride;
-				BYTE *dst = &tightY[row * frameWidth];
-				memcpy(dst, src, frameWidth);
-			}
-
-			// === UV plane ===
-			int uvWidth = frameWidth / 2;
-			int uvHeight = frameHeight / 2;
-			int paddedHeight = (frameHeight + 15) & ~15;
-
-			BYTE *uvPlane = scanline0 + (stride * paddedHeight);
-
-			static std::vector<BYTE> tightUV;
-			tightUV.resize(uvWidth * uvHeight * 2);
-
-			for (int row = 0; row < uvHeight; row++)
-			{
-				BYTE *src = uvPlane + row * stride;
-				BYTE *dst = &tightUV[row * uvWidth * 2];
-				memcpy(dst, src, uvWidth * 2);
-			}
-
-			// === Debug ===
-			// printf("=== NV12 Diagnostic ===\n");
-			// printf("Frame Size: %dx%d\n", frameWidth, frameHeight);
-			// printf("Stride: %d\n", stride);
-			// printf("First 16 Y bytes:\n");
-			// for (int i = 0; i < 16; i++) printf("%02X ", tightY[i]);
-			// printf("\nUV plane offset = %d bytes into buffer\n", (int)(uvPlane - scanline0));
-			// printf("First 16 UV pairs (U,V):\n");
-			// for (int i = 0; i < 16 * 2; i += 2)
-			//{
-			// printf("(%02X, %02X) ", tightUV[i], tightUV[i + 1]);
-			//}
-			// printf("\n");
-
-			// === Upload ===
-			if (yTextureID != 0)
-			{
-				glBindTexture(GL_TEXTURE_2D, yTextureID);
-				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frameWidth, frameHeight, GL_RED, GL_UNSIGNED_BYTE, tightY.data());
-			}
-
-			if (uvTextureID != 0)
-			{
-				glBindTexture(GL_TEXTURE_2D, uvTextureID);
-				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, uvWidth, uvHeight, GL_RG, GL_UNSIGNED_BYTE, tightUV.data());
-			}
-
-			LONGLONG timestamp = 0;
-			hr = sample->GetSampleTime(&timestamp);
-			if (SUCCEEDED(hr))
-				currentVideoPosition = timestamp;
-
-			buffer2D->Unlock2D();
-			buffer2D->Release();
-			buffer->Release();
-			return true;
-		}
-
-		buffer2D->Release();
+		buffer->Release();
+		return false;
 	}
 
+	BYTE* scanline0 = nullptr;
+	LONG stride = 0;
+	hr = buffer2D->Lock2D(&scanline0, &stride);
+	if (FAILED(hr))
+	{
+		buffer2D->Release();
+		buffer->Release();
+		return false;
+	}
+
+	int uvWidth = frameWidth / 2;
+	int uvHeight = frameHeight / 2;
+	int paddedHeight = (frameHeight + 15) & ~15;
+	BYTE* uvPlane = scanline0 + stride * paddedHeight;
+
+	bool success = false;
+
+	if (supportsUnpackRowLength)
+	{
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, stride);
+		glBindTexture(GL_TEXTURE_2D, yTextureID);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frameWidth, frameHeight, GL_RED, GL_UNSIGNED_BYTE, scanline0);
+
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, stride / 2);
+		glBindTexture(GL_TEXTURE_2D, uvTextureID);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, uvWidth, uvHeight, GL_RG, GL_UNSIGNED_BYTE, uvPlane);
+
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+		success = true;
+	}
+	else
+	{
+		static std::vector<BYTE> tightY;
+		static std::vector<BYTE> tightUV;
+
+		tightY.resize(frameWidth * frameHeight);
+		tightUV.resize(uvWidth * uvHeight * 2);
+
+		for (int row = 0; row < frameHeight; row++)
+		{
+			BYTE* src = scanline0 + row * stride;
+			BYTE* dst = &tightY[row * frameWidth];
+			memcpy(dst, src, frameWidth);
+		}
+
+		for (int row = 0; row < uvHeight; row++)
+		{
+			BYTE* src = uvPlane + row * stride;
+			BYTE* dst = &tightUV[row * uvWidth * 2];
+			memcpy(dst, src, uvWidth * 2);
+		}
+
+		glBindTexture(GL_TEXTURE_2D, yTextureID);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, frameWidth, frameHeight, GL_RED, GL_UNSIGNED_BYTE, tightY.data());
+
+		glBindTexture(GL_TEXTURE_2D, uvTextureID);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, uvWidth, uvHeight, GL_RG, GL_UNSIGNED_BYTE, tightUV.data());
+
+		success = true;
+	}
+
+	LONGLONG timestamp = 0;
+	if (SUCCEEDED(sample->GetSampleTime(&timestamp)))
+		currentVideoPosition = timestamp;
+
+	buffer2D->Unlock2D();
+	buffer2D->Release();
 	buffer->Release();
-	return false;
+
+	return success;
 }
 
 extern "C" unsigned char *video_get_frame_pixels(int *width, int *height)
@@ -518,7 +563,6 @@ int video_get_audio_samples(unsigned char *outBuffer, int bytesLength)
 	static std::vector<uint8_t> leftover;
 	int totalCopied = 0;
 
-	// === Copy from leftover first ===
 	while (totalCopied < bytesLength && !leftover.empty())
 	{
 		int toCopy = std::min((int)leftover.size(), bytesLength - totalCopied);
@@ -527,7 +571,6 @@ int video_get_audio_samples(unsigned char *outBuffer, int bytesLength)
 		leftover.erase(leftover.begin(), leftover.begin() + toCopy);
 	}
 
-	// === Read and buffer new samples until full ===
 	while (totalCopied < bytesLength)
 	{
 		IMFSample *sample = nullptr;
@@ -568,12 +611,10 @@ int video_get_audio_samples(unsigned char *outBuffer, int bytesLength)
 			break;
 		}
 
-		// zopy as much as fits
 		int toCopy = std::min((int)length, bytesLength - totalCopied);
 		memcpy(outBuffer + totalCopied, data, toCopy);
 		totalCopied += toCopy;
 
-		// save leftover for next call
 		if (toCopy < (int)length)
 		{
 			leftover.insert(leftover.end(), data + toCopy, data + length);
@@ -772,7 +813,6 @@ float internal_frameTimingJitterCompensation(float skew)
 
 void recalculateOptimalFrameLatency(bool forceRecheck)
 {
-	// Simulate some internal logic
 	if (forceRecheck)
 	{
 		internal_enableHybridAVSync = !internal_enableHybridAVSync;
