@@ -370,28 +370,7 @@ class NativeVideo extends Bitmap {
 		// AL.sourceQueueBuffers(__alSource, AUDIO_BUFFER_COUNT, __alAudioBuffers);
 		// @:inline
 		// AL.sourcePlay(__alSource);
-	}
-
-	@:noCompletion private inline function __getAudioPlaybackTime():Float {
-		var audioPosition:Int = __videoGetAudioPosition(); // position in bytes or samples from Media Foundation
-		var bytesPerSecond:Int = (__audioSampleRate * __audioChannels * (__audioBitsPerSample >> 3));
-
-		// Calculate buffered duration:
-		var bufferedSamples:Int = 0;
-
-		for (i in 0...AUDIO_BUFFER_COUNT) {
-			if (__audioBufferReady[i].load()) {
-				bufferedSamples += __audioBuffers[i].length >> 1;
-			}
-		}
-
-		var bufferedTime:Float = bufferedSamples / (__audioSampleRate * __audioChannels);
-
-		// Current actual playback time = audioPosition time - buffered time
-		var playbackTime:Float = (audioPosition / bytesPerSecond) - bufferedTime;
-
-		return playbackTime;
-	}
+	}	
 
 	@:noCompletion private function __setupThreads():Void {
 		__audioThread = new BackgroundWorker();
@@ -527,47 +506,34 @@ class NativeVideo extends Bitmap {
 		__audioBitsPerSample = __videoGetAudioBitsPerSample();
 	}
 
-	@:noCompletion override private function __enterFrame(deltaTime:Float):Void {
+	@:noCompletion override private function __enterFrame(deltaTime:Int):Void {
 		super.__enterFrame(deltaTime);
-
-		if (!isPlaying) {
-			return;
-		}
-
+	
+		if (!isPlaying) return;
+	
 		var audioPos:Int = Std.int(currentTime * 1000);
 		var videoPos:Int = __videoGetVideoPosition();
 		var diff:Int = audioPos - videoPos;
-
-		// var maxSkipFrames:Int = 5;
-
-		if (diff >= 1000) {
-			// Way behind — hard sync
+	
+		if (diff >= 200) {
 			__skipTo(audioPos);
 			return;
 		}
-
-		if (diff < -__frameDurationMS * 2) {
-			// if te video slightly ahead er can let audio catch up
+	
+		if (diff < -(__frameDurationMS * 2)) {
 			return;
 		}
-
-		// Calculate proportional skips
-		var framesBehind = diff / __frameDurationMS;
-		// scale factor here is tweakable
-		var framesToSkip = Std.int(framesBehind / 2);
-
-		if (framesToSkip > 0) {
-			// framesToSkip = Std.int(Math.min(framesToSkip, maxSkipFrames));
-			for (i in 0...framesToSkip) {
-				if (__isHardware) {
-					// skip decoding/uploading intermediate frames
-					__videoGLUpdateFrame();
-				} else {
-					__videoSoftwareUpdateFrame();
-				}
+	
+		var framesBehind:Int = Std.int(diff / __frameDurationMS);
+	
+		if (framesBehind > 1) {
+			if (__isHardware) {
+				__videoGLUpdateFrame();
+			} else {
+				__videoSoftwareUpdateFrame();
 			}
 		}
-		// always process the final frame
+	
 		__processFrames();
 	}
 
@@ -636,17 +602,28 @@ class NativeVideo extends Bitmap {
 	}
 
 	@:noCompletion private function __setupData():Void {
-		// Vertex positions (-1 to 1)
+		// Compute aspect ratios
+		var videoAspect = __videoWidth / __videoHeight;
+		var texAspect = __textureWidth / __textureHeight;
+	
+		var sx = 1.0;
+		var sy = 1.0;
+	
+		if (videoAspect > texAspect) {
+			sy = texAspect / videoAspect;
+		} else {
+			sx = videoAspect / texAspect;
+		}
+	
 		var posData = new Float32Array([
-			-1, -1,
-			 1, -1,
-			-1,  1,
-			 1,  1
+			-1 * sx, -1 * sy,
+			 1 * sx, -1 * sy,
+			-1 * sx,  1 * sy,
+			 1 * sx,  1 * sy
 		]);
 		__positions = __context.createVertexBuffer(4, 2);
 		__positions.uploadFromTypedArray(posData, 0);
-
-		// UVs (0 to 1)
+	
 		var uvData = new Float32Array([
 			0, 0,
 			1, 0,
@@ -655,11 +632,11 @@ class NativeVideo extends Bitmap {
 		]);
 		__uvs = __context.createVertexBuffer(4, 2);
 		__uvs.uploadFromTypedArray(uvData, 0);
-
-		// Indices (2 triangles)
+	
 		__indices = __context.createIndexBuffer(6);
 		__indices.uploadFromTypedArray(new UInt16Array([0, 1, 2, 2, 1, 3]), 0);
 	}
+	
 
 	@:noCompletion private function __createProgram():Void {
 		var vertexShader:String = "attribute vec2 aPosition;
