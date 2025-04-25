@@ -1,6 +1,5 @@
 package openfl.media;
 
-import lime.media.AudioManager;
 #if (cpp && windows)
 import lime.media.openal.AL;
 import lime.media.openal.ALSource;
@@ -8,7 +7,6 @@ import lime.media.openal.ALBuffer;
 import haxe.atomic.AtomicBool;
 import haxe.ds.Vector;
 import lime.system.BackgroundWorker;
-import lime.media.AudioSource;
 import openfl.media._internal.GLUtil;
 import cpp.Pointer;
 import haxe.io.Bytes;
@@ -42,7 +40,7 @@ import sys.thread.Mutex;
  * @author Christopher Speciale
  */
 @:access(openfl.media._internal.NativeVideoBackend)
-class NativeVideo extends Bitmap {
+final class NativeVideo extends Bitmap {
 	/**
 	 * Indicates whether the native video/audio playback system is supported on the current platform.
 	 * Currently only `true` on Windows targets using C++.
@@ -162,8 +160,6 @@ class NativeVideo extends Bitmap {
 	@:noCompletion private var __audioSampleRate:Int;
 	@:noCompletion private var __audioBitsPerSample:Int;
 	@:noCompletion private var __audioChannels:Int;
-	@:noCompletion private var __audioSource:AudioSource;
-	@:nocompletion private var __audioManger:AudioManager;
 	@:noCompletion private var __audioBuffers:Vector<Bytes>;
 	@:noCompletion private var __alAudioBuffers:Array<ALBuffer>;
 	@:noCompletion private var __alSource:ALSource;
@@ -649,8 +645,6 @@ class NativeVideo extends Bitmap {
 	}";
 
 		var fragmentShader:String = "
-		precision mediump float;
-
 		uniform sampler2D u_tex0; 
 		uniform sampler2D u_tex1;  
 
