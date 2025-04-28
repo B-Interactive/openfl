@@ -914,7 +914,7 @@ class File extends FileReference
 				for (file in files)
 				{
 					var newFile = new File(Path.join([newPath, file.name]));
-					file.copyTo(newFile);
+					file.copyTo(newFile, overwrite);
 				}
 			}
 			else
