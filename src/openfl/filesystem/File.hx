@@ -1153,9 +1153,9 @@ class File extends FileReference
 	/**
 		Deletes the file.
 
-		@throws	IOError The directory does not exist, or the directory could not be deleted. On Windows, you
-		cannot delete a directory that contains a file that is open.
-		@throws SecurityError The application does not have the necessary permissions to delete the directory.
+		@throws	IOError The file does not exist, or could not be deleted. On Windows, you
+		cannot delete a file that is currently open.
+		@throws SecurityError The application does not have the necessary permissions to delete the file.
 
 		The following code creates a temporary file and then calls the deleteFile() method to delete it.
 
@@ -1178,10 +1178,10 @@ class File extends FileReference
 	/**
 		Deletes the file asynchronously.
 
-		@event complete Dispatched when the directory has been deleted successfully.
-		@event ioError The directory does not exist or could not be deleted. On Windows, you cannot delete a
-		directory that contains a file that is open.
-		@throws SecurityError The application does not have the necessary permissions to delete the directory.
+		@event complete Dispatched when the file has been deleted successfully.
+		@event ioError The file does not exist or could not be deleted. On Windows, you cannot delete a
+		a file that is currently open.
+		@throws SecurityError The application does not have the necessary permissions to delete the file.
 
 		@see [Working with files](https://books.openfl.org/openfl-developers-guide/working-with-the-file-system/working-with-files.html)
 	**/
