@@ -4,3 +4,7 @@ body .navbar .brand:first-of-type {
 	padding-left: 240px;
 	margin: 0.5em 0;
 }
+
+table td {
+	vertical-align: top;
+}
