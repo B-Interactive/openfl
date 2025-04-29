@@ -383,11 +383,11 @@ class TextField extends InteractiveObject
 
 		| Entity | Description |
 		| --- | --- |
-		| &amp;lt; | < (less than) |
-		| &amp;gt; | > (greater than) |
-		| &amp;amp; | & (ampersand) |
-		| &amp;quot; | " (double quotes) |
-		| &amp;apos; | ' (apostrophe, single quote) |
+		| `&lt;` | < (less than) |
+		| `&gt;` | > (greater than) |
+		| `&amp;` | & (ampersand) |
+		| `&quot;` | " (double quotes) |
+		| `&apos;` | ' (apostrophe, single quote) |
 
 		OpenFL also supports explicit character codes, such as
 		`&#38;` (ASCII ampersand) and `&#x20AC;` (Unicode € symbol).
