@@ -1253,13 +1253,31 @@ class File extends FileReference
 			throw new Error("Not a directory.", 3007);
 		}
 
-		var directories:Array<String> = FileSystem.readDirectory(__path);
+		var fileNames:Array<String> = FileSystem.readDirectory(__path);
 		var files:Array<File> = [];
 
-		for (directory in directories)
+		#if windows
+		for (fileName in fileNames)
 		{
-			files.push(new File(__path + __sep + directory));
+			files.push(new File(__path + __sep + fileName));
 		}
+		#else
+		if (__path == __sep)
+		{
+			for (fileName in fileNames)
+			{
+				// avoid double // when listing unix root
+				files.push(new File(__sep + fileName));
+			}
+		}
+		else
+		{
+			for (fileName in fileNames)
+			{
+				files.push(new File(__path + __sep + fileName));
+			}
+		}
+		#end
 
 		return files;
 	}
@@ -1314,10 +1332,10 @@ class File extends FileReference
 		});
 		__fileWorker.doWork.add(function(m:Dynamic)
 		{
-			var directories:Array<String> = null;
+			var fileNames:Array<String> = null;
 			try
 			{
-				directories = FileSystem.readDirectory(__path);
+				fileNames = FileSystem.readDirectory(__path);
 			}
 			catch (e:Dynamic)
 			{
@@ -1333,10 +1351,29 @@ class File extends FileReference
 				return;
 			}
 			var files:Array<File> = [];
-			for (directory in directories)
+
+			#if windows
+			for (fileName in fileNames)
 			{
-				files.push(new File(__path + __sep + directory));
+				files.push(new File(__path + __sep + fileName));
 			}
+			#else
+			if (__path == __sep)
+			{
+				for (fileName in fileNames)
+				{
+					// avoid double // when listing unix root
+					files.push(new File(__sep + fileName));
+				}
+			}
+			else
+			{
+				for (fileName in fileNames)
+				{
+					files.push(new File(__path + __sep + fileName));
+				}
+			}
+			#end
 			// don't dispatch events directly from doWork because the listeners
 			// will be called in the wrong thread
 			__fileWorker.sendComplete(new FileListEvent(FileListEvent.DIRECTORY_LISTING, files));
