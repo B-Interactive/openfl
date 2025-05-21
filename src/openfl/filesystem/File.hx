@@ -2143,7 +2143,7 @@ class File extends FileReference
 				path = Path.addTrailingSlash(path);
 			}
 
-			if (Path.directory(path).length == 0)
+			if (#if !windows !StringTools.startsWith(path, "/") && #end Path.directory(path).length == 0)
 			{
 				throw new ArgumentError("One of the parameters is invalid.");
 			}
