@@ -95,6 +95,12 @@ class CairoShape
 
 					function drawImage(sx:Float, sy:Float, sWidth:Float, sHeight:Float, dx:Float, dy:Float, dWidth:Float, dHeight:Float):Void
 					{
+						if (dWidth == 0.0 || dHeight == 0.0)
+						{
+							// nothing to draw
+							return;
+						}
+
 						renderTransform.a = (dWidth / sWidth);
 						renderTransform.d = (dHeight / sHeight);
 						renderTransform.tx = transform.tx + dx;
