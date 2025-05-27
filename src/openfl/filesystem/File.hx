@@ -2233,7 +2233,7 @@ class File extends FileReference
 		{
 			lastIndex += 1;
 		}
-		return lastIndex != -1 ? new File(__path.substring(0, (lastIndex - path.length) + path.length)) : null;
+		return lastIndex > 0 ? new File(__path.substring(0, (lastIndex - path.length) + path.length)) : null;
 	}
 }
 #else
