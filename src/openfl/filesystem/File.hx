@@ -1988,31 +1988,14 @@ class File extends FileReference
 	#if windows
 	@:noCompletion private function __replaceWindowsEnvVars(path:String):String
 	{
-		// Define the regular expression to match the path component to be replaced
-		var pattern:EReg = ~/%(.+?)%/;
-
-		// Find the first match of the regular expression in the path
-		var match:Bool = pattern.match(path);
-
-		if (match)
+		// replace all environment variables wrapped in %VAR_NAME%
+		var pattern:EReg = ~/%([^%]+)%/g;
+		return pattern.map(path, function (p)
 		{
-			// Extract the matched path component
-			var matchedPath:String = pattern.matched(0);
-
-			// Get the environment variable name by removing the first and last characters ("%")
-			var envVar:String = matchedPath.substring(1, matchedPath.length - 1);
-
-			// Get the value of the environment variable
-			var envVarValue:Null<String> = Sys.getEnv(envVar);
-
-			if (envVarValue == null)
-			{
-				return path;
-			}
-			// Replace the matched path component with the environment variable value
-			return StringTools.replace(path, matchedPath, envVarValue);
-		}
-		return path;
+			var envVar = p.matched(1);
+			var value = Sys.getEnv(envVar);
+			return (value != null) ? value : p.matched(0);
+		});
 	}
 	#end
 
