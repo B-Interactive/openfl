@@ -2198,9 +2198,22 @@ class File extends FileReference
 
 	@:noCompletion private function get_url():String
 	{
-		// TODO: url encode the native path to avoid invalid URL characters
-		// TODO: use app: and app-storage: protocols instead of file:, when path is relative to those directories
-		return "file:///" + nativePath;
+		// TODO: use app: and app-storage: protocols instead of file:, when path is relative to those directories		
+		var path = nativePath;
+		
+		#if windows
+		// convert to forward slashes for URLs
+		path = path.split("\\").join("/");
+		if (!StringTools.startsWith(path, "/")){
+			path = "/" + path;
+		}
+		#end
+			
+		var encoded = StringTools.urlEncode(path);
+		// keep path separators and drive colon unescaped
+		encoded = StringTools.replace(encoded, "%2F", "/");
+		encoded = StringTools.replace(encoded, "%3A", ":");
+		return "file://" + encoded;		
 	}
 
 	@:noCompletion private function get_exists():Bool
