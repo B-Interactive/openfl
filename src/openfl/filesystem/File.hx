@@ -782,8 +782,42 @@ class File extends FileReference
 		if (cPath == null)
 		{
 			// fall back to unix paths
-			cPath = __sep + segs[1] + __sep;
+			var firstSeg = segs[1];
+			if (firstSeg == "." || firstSeg == "..")
+			{
+				cPath = __sep;
+			}
+			else
+			{
+				cPath = __sep + segs[1] + __sep;
+			}
 			start = 2;
+		}
+
+		var i = segs.length - 1;
+		var dotDotStack = 0;
+		while (i >= start)
+		{
+			var seg = segs[i];
+			if (seg == ".")
+			{
+				segs.splice(i, 1);
+			}
+			else
+			{
+				var isDotDot = seg == "..";
+				if (dotDotStack > 0 && !isDotDot)
+				{
+					segs.splice(i, 1);
+					dotDotStack--;
+				}
+				else if (isDotDot)
+				{
+					segs.splice(i, 1);
+					dotDotStack++;
+				}
+			}
+			i--;
 		}
 
 		for (i in start...segs.length)
