@@ -65,6 +65,7 @@ class DisplayObjectRenderer extends EventDispatcher
 		__pixelRatio = 1;
 		__tempColorTransform = new ColorTransform();
 		__worldAlpha = 1;
+		__blendMode = NORMAL;
 	}
 
 	@:noCompletion private function __clear():Void {}
