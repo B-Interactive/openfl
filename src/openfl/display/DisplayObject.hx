@@ -1428,8 +1428,16 @@ class DisplayObject extends EventDispatcher implements IBitmapDrawable #if (open
 		__cairo = null;
 
 		#if (js && html5)
-		__canvas = null;
-		__context = null;
+		if (__canvas != null) {
+			__canvas.width = 0;
+			__canvas.height = 0;
+			__canvas = null;
+		}
+
+		if (__context != null) {
+			__context.clearRect(0, 0, 0, 0);
+			__context = null;
+		}
 		#end
 
 		if (__graphics != null)

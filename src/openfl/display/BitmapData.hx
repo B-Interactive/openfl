@@ -745,6 +745,24 @@ class BitmapData implements IBitmapDrawable
 	**/
 	public function dispose():Void
 	{
+		#if (js && html5)
+		if (image != null && image.type == CANVAS) {
+			var canvas = image.buffer.__srcCanvas;
+			var context = image.buffer.__srcContext;
+
+			if (canvas != null) {
+				canvas.width = 0;
+				canvas.height = 0;
+				canvas = null;
+			}
+	
+			if (context != null) {
+				context.clearRect(0, 0, 0, 0);
+				context = null;
+			}
+		}
+		#end
+		
 		image = null;
 
 		width = 0;
