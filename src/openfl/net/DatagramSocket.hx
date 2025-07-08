@@ -325,10 +325,14 @@ class DatagramSocket extends EventDispatcher
 	override public function addEventListener<T>(type:EventType<T>, listener:Dynamic->Void, useCapture:Bool = false, priority:Int = 0,
 			useWeakReference:Bool = false):Void
 	{
-		var dataEvent:String = DatagramSocketDataEvent.DATA;
+		var dataEvent = DatagramSocketDataEvent.DATA;
+
+		// Will we have *no* DATA listeners until this call succeeds?
+		var needsEnterFrame = (type == dataEvent && !this.hasEventListener(dataEvent));
+
 		super.addEventListener(type, listener, useCapture, priority, useWeakReference);
 
-		if (type == dataEvent && !this.hasEventListener(dataEvent))
+		if (needsEnterFrame)
 		{
 			Lib.current.addEventListener(Event.ENTER_FRAME, __onFrameUpdate);
 		}
@@ -337,7 +341,11 @@ class DatagramSocket extends EventDispatcher
 	override public function removeEventListener<T>(type:EventType<T>, listener:Dynamic->Void, useCapture:Bool = false):Void
 	{
 		super.removeEventListener(type, listener, useCapture);
-		if (type == DatagramSocketDataEvent.DATA)
+
+		var dataEvent = DatagramSocketDataEvent.DATA;
+
+		// Did we just remove the *last* DATA listener?
+		if (type == dataEvent && !this.hasEventListener(dataEvent))
 		{
 			Lib.current.removeEventListener(Event.ENTER_FRAME, __onFrameUpdate);
 		}
