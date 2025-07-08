@@ -3,7 +3,7 @@ package;
 import openfl.events.DatagramSocketDataEvent;
 import openfl.net.DatagramSocket;
 #if (sys || air)
-import openfl.utils.ByteArray;
+	import openfl.utils.ByteArray;
 #end
 import utest.Assert;
 import utest.Async;
@@ -15,111 +15,122 @@ import utest.Test;
  */
 class DatagramSocketTest extends Test
 {
-    #if (sys || air)
-    var sockA:DatagramSocket; // “server” conceptually
-    var sockB:DatagramSocket; // “client”
+	#if (sys || air)
+	var sockA:DatagramSocket; // “server” conceptually
+	var sockB:DatagramSocket; // “client”
 
-    /* ---------- helpers ---------- */
+	/* ---------- helpers ---------- */
 
-    inline function makeSocket():DatagramSocket
-    {
-        var s = new DatagramSocket();
-        #if air
-        s.bind(0, "127.0.0.1");
-        #else
-        s.bind();                    // auto address/port
-        #end
-        s.receive();                 // start listening immediately
-        return s;
-    }
+	inline function makeSocket():DatagramSocket
+	{
+		var s = new DatagramSocket();
+		#if air
+		s.bind(0, "127.0.0.1");
+		#else
+		s.bind();                    // auto address/port
+		#end
+		s.receive();                 // start listening immediately
+		return s;
+	}
 
-    inline function close(s:DatagramSocket):Void
-    {
-        if (s != null && s.bound) s.close();
-    }
+	inline function close(s:DatagramSocket):Void
+	{
+		if (s != null && s.bound) s.close();
+	}
 
-    /* ---------- teardown ---------- */
+	/* ---------- teardown ---------- */
 
-    public function teardown()
-    {
-        close(sockA);
-        close(sockB);
-        sockA = sockB = null;
-    }
+	public function teardown()
+	{
+		close(sockA);
+		close(sockB);
+		sockA = sockB = null;
+	}
 
-    /* ---------- tests ---------- */
+	/* ---------- tests ---------- */
 
-    public function test_bind()
-    {
-        sockA = makeSocket();
-        Assert.isTrue(sockA.bound);
-        Assert.notNull(sockA.localAddress);
-        Assert.isTrue(sockA.localPort > 0);
-        close(sockA);
-        Assert.isFalse(sockA.bound);
-    }
+	public function test_bind()
+	{
+		sockA = makeSocket();
+		Assert.isTrue(sockA.bound);
+		Assert.notNull(sockA.localAddress);
+		Assert.isTrue(sockA.localPort > 0);
+		close(sockA);
+		Assert.isFalse(sockA.bound);
+	}
 
-    @:timeout(2000)
-    public function test_sendReceive(async:Async)
-    {
-        sockA = makeSocket();
-        sockB = makeSocket();
+	@:timeout(2000)
+	public function test_sendReceive(async:Async)
+	{
+		sockA = makeSocket();
+		sockB = makeSocket();
 
-        var payload = "PING";
-        var bytes   = new ByteArray();
-        bytes.writeUTFBytes(payload);
+		var payload = "PING";
+		var bytes   = new ByteArray();
+		bytes.writeUTFBytes(payload);
 
-        // B receives
-        sockB.addEventListener(DatagramSocketDataEvent.DATA, function(e)
-        {
-            if (async.timedOut) return;
+		// B receives
+		sockB.addEventListener(DatagramSocketDataEvent.DATA, function(e)
+		{
+			if (async.timedOut) return;
 
-            Assert.equals(payload, e.data.toString());
-            async.done();
-        });
+			Assert.equals(payload, e.data.toString());
+			async.done();
+		});
 
-        // A sends to B
-        sockA.send(bytes, 0, 0, sockB.localAddress, sockB.localPort);
-    }
+		// A sends to B
+		// Wildcard is broken on hashlink
+		#if hl
+		sockA.send(bytes, 0, 0, "127.0.0.1", sockB.localPort);
+		#else
+		sockA.send(bytes, 0, 0, sockB.localAddress, sockB.localPort);
+		#end
+	}
 
-    @:timeout(2000)
-    public function test_bidirectionalEcho(async:Async)
-    {
-        sockA = makeSocket();
-        sockB = makeSocket();
+	@:timeout(2000)
+	public function test_bidirectionalEcho(async:Async)
+	{
+		sockA = makeSocket();
+		sockB = makeSocket();
 
-        var aMsg = "HELLO";
-        var bMsg = "WORLD";
+		var aMsg = "HELLO";
+		var bMsg = "WORLD";
 
-        var aBytes = new ByteArray(); aBytes.writeUTFBytes(aMsg);
-        var bBytes = new ByteArray(); bBytes.writeUTFBytes(bMsg);
+		var aBytes = new ByteArray(); aBytes.writeUTFBytes(aMsg);
+		var bBytes = new ByteArray(); bBytes.writeUTFBytes(bMsg);
 
-        var gotA = false;
-        var gotB = false;
+		var gotA = false;
+		var gotB = false;
 
-        function check() if (gotA && gotB && !async.timedOut) async.done();
+		function check() if (gotA && gotB && !async.timedOut) async.done();
 
-        sockA.addEventListener(DatagramSocketDataEvent.DATA, function(e)
-        {
-            Assert.equals(bMsg, e.data.toString());
-            gotA = true; check();
-        });
+		sockA.addEventListener(DatagramSocketDataEvent.DATA, function(e)
+		{
+			Assert.equals(bMsg, e.data.toString());
+			gotA = true; check();
+		});
 
-        sockB.addEventListener(DatagramSocketDataEvent.DATA, function(e)
-        {
-            Assert.equals(aMsg, e.data.toString());
-            gotB = true; check();
-        });
+		sockB.addEventListener(DatagramSocketDataEvent.DATA, function(e)
+		{
+			Assert.equals(aMsg, e.data.toString());
+			gotB = true; check();
+		});
 
-        sockA.send(aBytes, 0, 0, sockB.localAddress, sockB.localPort);
-        sockB.send(bBytes, 0, 0, sockA.localAddress, sockA.localPort);
-    }
+		// Wildcard is broken on hashlink
+		#if hl
+		sockA.send(aBytes, 0, 0, "127.0.0.1", sockB.localPort);
+		sockB.send(bBytes, 0, 0, "127.0.0.1", sockA.localPort);
+		#else
+		sockA.send(aBytes, 0, 0, sockB.localAddress, sockB.localPort);
+		sockB.send(bBytes, 0, 0, sockA.localAddress, sockA.localPort);
+		#end
+	}
 
-    #else
-    /*  Non-sys targets (html5, mobile) – DatagramSocket unavailable. */
-    public function test_placeholder()
-    {
-        Assert.pass();
-    }
-    #end
+	#else
+	/*  Non-sys targets (html5, mobile) – DatagramSocket unavailable. */
+	public function test_placeholder()
+	{
+		Assert.pass();
+	}
+	#end
 }
