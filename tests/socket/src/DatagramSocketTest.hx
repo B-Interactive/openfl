@@ -78,13 +78,7 @@ class DatagramSocketTest extends Test
 			async.done();
 		});
 
-		// A sends to B
-		// Wildcard is broken on hashlink
-		#if hl
-		sockA.send(bytes, 0, 0, "127.0.0.1", sockB.localPort);
-		#else
 		sockA.send(bytes, 0, 0, sockB.localAddress, sockB.localPort);
-		#end
 	}
 
 	@:timeout(2000)
@@ -116,14 +110,8 @@ class DatagramSocketTest extends Test
 			gotB = true; check();
 		});
 
-		// Wildcard is broken on hashlink
-		#if hl
-		sockA.send(aBytes, 0, 0, "127.0.0.1", sockB.localPort);
-		sockB.send(bBytes, 0, 0, "127.0.0.1", sockA.localPort);
-		#else
 		sockA.send(aBytes, 0, 0, sockB.localAddress, sockB.localPort);
 		sockB.send(bBytes, 0, 0, sockA.localAddress, sockA.localPort);
-		#end
 	}
 
 	#else
