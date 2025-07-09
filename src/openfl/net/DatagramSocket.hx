@@ -145,7 +145,7 @@ class DatagramSocket extends EventDispatcher
 	**/
 	public function bind(localPort:Int = 0, localAddress:String = "0.0.0.0"):Void
 	{
-		if (localPort > 65535 || localPort < 0)
+		if (localPort < 0 || localPort > 65535)
 		{
 			throw new RangeError("Invalid socket port number specified.");
 		}
@@ -154,7 +154,8 @@ class DatagramSocket extends EventDispatcher
 			__udpSocket.bind(new Host(localAddress), localPort);
 
 			var host = __udpSocket.host();
-			this.localAddress = host.host.host != null ? host.host.host : localAddress;
+			//TODO: Reduce GC pressure here? Do we need to do this for other Socket API?
+			this.localAddress = localAddress == "0.0.0.0" ? representativeHost() : localAddress;
 			this.localPort = host.port;
 
 			bound = true;
@@ -167,6 +168,8 @@ class DatagramSocket extends EventDispatcher
 					dispatchEvent(new Event(Event.CLOSE));
 				case "Unresolved host":
 					throw new ArgumentError("One of the parameters is invalid");
+				default:
+					throw e;
 			}
 		}
 	}
@@ -354,6 +357,21 @@ class DatagramSocket extends EventDispatcher
 		{
 			Lib.current.removeEventListener(Event.ENTER_FRAME, __onFrameUpdate);
 		}
+	}
+
+	inline function representativeHost():String
+	{
+		var sock = new sys.net.Socket();
+		var result = "127.0.0.1";
+		try
+		{
+			sock.connect(new sys.net.Host("8.8.8.8"), 53);
+			var h = sock.host();
+			if (h != null) result = h.host.toString();
+		}
+		catch (e:Dynamic) {}
+		sock.close();
+		return result;
 	}
 
 	@:noCompletion private function __onFrameUpdate(e:Event):Void
