@@ -1808,6 +1808,8 @@ class TextField extends InteractiveObject
 			// we need to call setTextInputRect() after setting textInputEnabled
 			// to true, or SDL might ignore the rectangle and think that the
 			// input is happening at 0,0
+			// strangely, the SDL docs seem to say the opposite, "this function
+			// is intended to be called before SDL_StartTextInput"
 			stage.window.setTextInputRect(limeRect);
 			#end
 
