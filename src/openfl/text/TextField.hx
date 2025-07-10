@@ -1789,6 +1789,8 @@ class TextField extends InteractiveObject
 		#if lime
 		if (stage != null)
 		{
+			stage.window.textInputEnabled = true;
+
 			#if (lime >= "8.0.0")
 			// ensure that the text field is not hidden by the soft keyboard
 			var bounds = getBounds(stage);
@@ -1803,10 +1805,11 @@ class TextField extends InteractiveObject
 				limeRect.height /= scale;
 			}
 			#end
+			// we need to call setTextInputRect() after setting textInputEnabled
+			// to true, or SDL might ignore the rectangle and think that the
+			// input is happening at 0,0
 			stage.window.setTextInputRect(limeRect);
 			#end
-
-			stage.window.textInputEnabled = true;
 
 			if (!__inputEnabled)
 			{
