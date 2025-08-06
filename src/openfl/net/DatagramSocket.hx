@@ -11,6 +11,7 @@ import openfl.events.DatagramSocketDataEvent;
 import openfl.events.Event;
 import openfl.events.EventType;
 import openfl.events.EventDispatcher;
+import openfl.Lib;
 #if !js
 import openfl.utils.ByteArray;
 import sys.net.Address;
@@ -97,11 +98,17 @@ class DatagramSocket extends EventDispatcher
 	**/
 	public var remotePort(get, null):Int;
 
+	/**
+		Enable UDP broadcast capability for this socket.
+	**/
+	public var enableBroadcast(get, set):Bool;
+
 	@:noCompletion private var __udpSocket:UdpSocket;
 	@:noCompletion private var __isReceiving:Bool;
 	@:noCompletion private var __iBytes:Bytes = Bytes.alloc(4096);
 	@:noCompletion private var __buffer:ByteArray;
 	@:noCompletion private var __localAddress:String;
+	@:noCompletion private var __enableBroadcast:Bool = false;
 
 	/**
 		Creates a DatagramSocket object
@@ -261,7 +268,8 @@ class DatagramSocket extends EventDispatcher
 		is sent to the specified address and port and you must supply valid values for address and port. If the bind()
 		method has not been called, the socket is automatically bound to the default local address and port.
 
-		Note: Sending data to a broadcast address is not supported.
+		Sending data to a broadcast address requires the socket's enableBroadcast property be true (cpp and neko targets
+		only).
 
 		@param bytes A ByteArray containing the packet data.
 		@param offset The zero-based offset into the bytes ByteArray object at which the packet begins.
@@ -299,6 +307,19 @@ class DatagramSocket extends EventDispatcher
 		if (offset + length > bytes.length)
 		{
 			throw new RangeError("The supplied index is out of bounds.");
+		}
+
+		// Validate broadcast address before try/catch to avoid masking the ArgumentError
+		if (address != null && __isBroadcastAddress(address))
+		{
+			if (!enableBroadcast)
+			{
+				throw new ArgumentError("Cannot send to broadcast address. Set enableBroadcast to true first.");
+			}
+			
+			#if !(cpp || neko)
+			throw new IllegalOperationError("UDP broadcast is not supported on this platform. Supported platforms: cpp, neko");
+			#end
 		}
 
 		try
@@ -446,6 +467,46 @@ class DatagramSocket extends EventDispatcher
 			return __udpSocket.peer().port;
 		}
 		return 0;
+	}
+
+	@:noCompletion private function get_enableBroadcast():Bool
+	{
+		return __enableBroadcast;
+	}
+
+	@:noCompletion private function set_enableBroadcast(value:Bool):Bool
+	{
+		#if (cpp || neko)
+		__enableBroadcast = value;
+		try
+		{
+			__udpSocket.setBroadcast(value);
+		}
+		catch (e:Dynamic)
+		{
+			throw new IOError("Failed to set broadcast mode: " + e);
+		}
+		return __enableBroadcast;
+		#else
+		throw new IllegalOperationError("UDP broadcast is not supported on this platform. Supported platforms: cpp, neko");
+		#end
+	}
+
+	@:noCompletion private function __isBroadcastAddress(address:String):Bool
+	{
+		// Check for common broadcast addresses
+		if (address == "255.255.255.255") return true;
+		
+		// Check for subnet broadcast (ending with .255)
+		// This is a simple check - in reality, broadcast detection would be more complex
+		// but this covers the most common cases
+		var parts = address.split(".");
+		if (parts.length == 4)
+		{
+			return parts[3] == "255";
+		}
+		
+		return false;
 	}
 	#end
 }
