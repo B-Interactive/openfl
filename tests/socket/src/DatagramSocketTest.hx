@@ -1,11 +1,12 @@
 package;
 
 import openfl.events.DatagramSocketDataEvent;
+import openfl.errors.ArgumentError;
+import openfl.errors.IOError;
+import openfl.errors.RangeError;
 import openfl.net.DatagramSocket;
 #if (sys || air)
 	import openfl.utils.ByteArray;
-	import openfl.errors.ArgumentError;
-	import openfl.errors.IllegalOperationError;
 #end
 import utest.Assert;
 import utest.Async;
@@ -116,157 +117,95 @@ class DatagramSocketTest extends Test
 		sockB.send(bBytes, 0, 0, sockA.localAddress, sockA.localPort);
 	}
 
-	public function test_enableBroadcast_defaultValue()
+	/* ---------- broadcast supported/unsupported target ---------- */
+
+	public function test_broadcast()
 	{
-		sockA = makeSocket();
-		Assert.isFalse(sockA.enableBroadcast);
+		#if (cpp || neko)
+		var data = new ByteArray(10);
+		for (i in 0...10) {
+			data.writeByte(i);
+		}
+		data.position = 0;
+
+		try {
+			// Test with invalid port (should throw regardless of network)
+			DatagramSocket.broadcast(data, 0, 10, 0, "127.0.0.1");
+			Assert.fail("Broadcast should throw RangeError for port=0");
+		} catch (e:RangeError) {
+			Assert.pass("Correctly threw RangeError for invalid port");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
+		}
+
+		#else
+		// On unsupported platforms, should throw IOError
+		var data = new ByteArray(10);
+		try {
+			DatagramSocket.broadcast(data, 0, 10, 54321, "127.0.0.1");
+			Assert.fail("Broadcast should throw IOError on unsupported platform");
+		} catch (e:IOError) {
+			Assert.pass("Correctly threw IOError on unsupported platform");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
+		}
+		#end
 	}
 
-	#if (cpp || neko)
-	public function test_enableBroadcast_setter()
-	{
-		sockA = makeSocket();
-		
-		// Should not throw on supported platforms
-		sockA.enableBroadcast = true;
-		Assert.isTrue(sockA.enableBroadcast);
-		
-		sockA.enableBroadcast = false;
-		Assert.isFalse(sockA.enableBroadcast);
-	}
+	/* ---------- broadcast validations ---------- */
 
-	public function test_broadcastSend_requiresEnableBroadcast()
+	public function test_broadcast_validation()
 	{
-		sockA = makeSocket();
-		var bytes = new ByteArray();
-		bytes.writeUTFBytes("BROADCAST");
-		
-		// Should throw error when trying to send to broadcast without enabling it
-		var caught = false;
-		try
-		{
-			sockA.send(bytes, 0, 0, "255.255.255.255", 9999);
+		// Test null bytes parameter
+		try {
+			DatagramSocket.broadcast(null, 0, 0, 54321, "127.0.0.1");
+			Assert.fail("Broadcast should throw ArgumentError for null bytes");
+		} catch (e:ArgumentError) {
+			Assert.pass("Correctly threw ArgumentError for null bytes");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
 		}
-		catch (e:ArgumentError)
-		{
-			caught = true;
-			Assert.isTrue(e.message.indexOf("broadcast") > -1);
-		}
-		Assert.isTrue(caught);
-	}
 
-	public function test_broadcastSend_withEnableBroadcast()
-	{
-		sockA = makeSocket();
-		sockA.enableBroadcast = true;
-		
-		var bytes = new ByteArray();
-		bytes.writeUTFBytes("BROADCAST");
-		
-		// Should not throw when broadcast is enabled (though packet may not be delivered)
-		// We can't easily test actual broadcast reception in unit tests
-		try
-		{
-			sockA.send(bytes, 0, 0, "255.255.255.255", 9999);
-			Assert.pass();
+		// Test invalid port range
+		var data = new ByteArray(10);
+		try {
+			DatagramSocket.broadcast(data, 0, 10, 0, "127.0.0.1");
+			Assert.fail("Broadcast should throw RangeError for port=0");
+		} catch (e:RangeError) {
+			Assert.pass("Correctly threw RangeError for port=0");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
 		}
-		catch (e:Dynamic)
-		{
-			// Some systems may not allow broadcast even when enabled
-			// This is acceptable as long as we don't get our validation error
-			if (Std.isOfType(e, ArgumentError) && e.message.indexOf("broadcast") > -1)
-			{
-				Assert.fail("Should not get broadcast validation error when broadcast is enabled");
-			}
-		}
-	}
 
-	public function test_broadcastAddressDetection()
-	{
-		sockA = makeSocket();
-		var bytes = new ByteArray();
-		bytes.writeUTFBytes("TEST");
-		
-		// Test various broadcast addresses
-		var broadcastAddresses = ["255.255.255.255", "192.168.1.255", "10.0.0.255"];
-		
-		for (addr in broadcastAddresses)
-		{
-			var caught = false;
-			try
-			{
-				sockA.send(bytes, 0, 0, addr, 9999);
-			}
-			catch (e:ArgumentError)
-			{
-				caught = true;
-				Assert.isTrue(e.message.indexOf("broadcast") > -1);
-			}
-			Assert.isTrue(caught, 'Should detect $addr as broadcast address');
+		try {
+			DatagramSocket.broadcast(data, 0, 10, 65536, "127.0.0.1");
+			Assert.fail("Broadcast should throw RangeError for port=65536");
+		} catch (e:RangeError) {
+			Assert.pass("Correctly threw RangeError for port=65536");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
 		}
-	}
 
-	public function test_regularSend_stillWorks()
-	{
-		sockA = makeSocket();
-		sockB = makeSocket();
-		
-		// Enable broadcast on A but send to regular address
-		sockA.enableBroadcast = true;
-		
-		var bytes = new ByteArray();
-		bytes.writeUTFBytes("REGULAR");
-		
-		// Should work normally
-		try
-		{
-			sockA.send(bytes, 0, 0, sockB.localAddress, sockB.localPort);
-			Assert.pass();
+		// Test invalid offset
+		try {
+			DatagramSocket.broadcast(data, 20, 10, 54321, "127.0.0.1");
+			Assert.fail("Broadcast should throw RangeError for offset outside bounds");
+		} catch (e:RangeError) {
+			Assert.pass("Correctly threw RangeError for invalid offset");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
 		}
-		catch (e:Dynamic)
-		{
-			Assert.fail("Regular send should work when broadcast is enabled");
-		}
-	}
-	#else
-	public function test_enableBroadcast_unsupportedPlatform()
-	{
-		sockA = makeSocket();
-		
-		// Should throw error on unsupported platforms
-		var caught = false;
-		try
-		{
-			sockA.enableBroadcast = true;
-		}
-		catch (e:IllegalOperationError)
-		{
-			caught = true;
-			Assert.isTrue(e.message.indexOf("not supported") > -1);
-		}
-		Assert.isTrue(caught);
-	}
 
-	public function test_broadcastSend_unsupportedPlatform()
-	{
-		sockA = makeSocket();
-		var bytes = new ByteArray();
-		bytes.writeUTFBytes("BROADCAST");
-		
-		// Should throw error when trying to send to broadcast on unsupported platform
-		var caught = false;
-		try
-		{
-			sockA.send(bytes, 0, 0, "255.255.255.255", 9999);
+		// Test invalid length
+		try {
+			DatagramSocket.broadcast(data, 5, 10, 54321, "127.0.0.1");
+			Assert.fail("Broadcast should throw RangeError for length exceeding bounds");
+		} catch (e:RangeError) {
+			Assert.pass("Correctly threw RangeError for invalid length");
+		} catch (e:Dynamic) {
+			Assert.fail("Wrong error type thrown: " + e);
 		}
-		catch (e:IllegalOperationError)
-		{
-			caught = true;
-			Assert.isTrue(e.message.indexOf("not supported") > -1);
-		}
-		Assert.isTrue(caught);
 	}
-	#end
 
 	#else
 	/*  Non-sys targets (html5, mobile) – DatagramSocket unavailable. */
