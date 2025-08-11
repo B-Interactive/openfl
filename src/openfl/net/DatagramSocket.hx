@@ -378,17 +378,17 @@ class DatagramSocket extends EventDispatcher
 			
 			if(isEphemeral){
 				socket = new DatagramSocket();
-				socket.bind(new Host(localAddress), 0);
+				socket.bind(address);
 			}
 			
-			socket.setBroadcast(true);			
+			socket.__udpSocket.setBroadcast(true);			
 
 			//TODO: allow reuse if not ephemeral
 			var broadcastAddress = new Address();
 			broadcastAddress.host = new Host(address).ip;
 			broadcastAddress.port = port;
 
-			socket.sendTo(cast bytes, offset, actualLength, broadcastAddress);
+			socket.__udpSocket.sendTo(cast bytes, offset, actualLength, broadcastAddress);
 			
 			if(isEphemeral) {
 				socket.close();
