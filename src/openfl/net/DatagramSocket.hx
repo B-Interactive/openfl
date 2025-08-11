@@ -347,7 +347,7 @@ class DatagramSocket extends EventDispatcher
 		@throws RangeError The port is not between 1 and 65535, inclusive,
 			or the offset or length are outside the bounds of the bytes array.
 	**/
-	public static inline function broadcast(socket:DatagramSocket, bytes:ByteArray, offset:UInt = 0, length:UInt = 0, address:String = "255.255.255.255", port:Int = 0):Void
+	public static inline function broadcast(socket:DatagramSocket = null, bytes:ByteArray, offset:UInt = 0, length:UInt = 0, address:String = "255.255.255.255", port:Int = 0):Void
 	{
         #if (cpp || neko)
 		if (bytes == null)
@@ -374,17 +374,25 @@ class DatagramSocket extends EventDispatcher
 
 		try
 		{
-			socket.setBroadcast(true);
+			var isEphemeral:Bool = socket == null;
+			
+			if(isEphemeral){
+				socket = new DatagramSocket();
+				socket.bind(new Host(localAddress), 0);
+			}
+			
+			socket.setBroadcast(true);			
 
-			socket.bind(new Host(localAddress), 0);
-
-			// Set up the destination broadcast address
+			//TODO: allow reuse if not ephemeral
 			var broadcastAddress = new Address();
 			broadcastAddress.host = new Host(address).ip;
 			broadcastAddress.port = port;
 
 			socket.sendTo(cast bytes, offset, actualLength, broadcastAddress);
-			socket.close();
+			
+			if(isEphemeral) {
+				socket.close();
+			}
 		}
 		catch (e:Dynamic)
 		{
