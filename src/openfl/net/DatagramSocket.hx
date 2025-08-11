@@ -3,6 +3,7 @@ package openfl.net;
 #if (!flash && !html5)
 import haxe.io.Bytes;
 import haxe.io.Error;
+import openfl.errors.Error as OFLError;
 import openfl.errors.ArgumentError;
 import openfl.errors.IOError;
 import openfl.errors.IllegalOperationError;
@@ -396,10 +397,10 @@ class DatagramSocket extends EventDispatcher
 		}
 		catch (e:Dynamic)
 		{
-			throw new Error("Failed to broadcast datagram: " + e);
+			throw new IOError("Failed to broadcast datagram: " + e);
 		}
 		#else
-		throw new Error("Broadcast not supported on this platform");
+		throw new OFLError("Broadcast not supported on this platform");
 		#end
 	}
 
