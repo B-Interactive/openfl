@@ -347,15 +347,15 @@ class DatagramSocket extends EventDispatcher
 		@throws RangeError The port is not between 1 and 65535, inclusive,
 			or the offset or length are outside the bounds of the bytes array.
 	**/
-	public static function broadcast(bytes:ByteArray, offset:UInt = 0, length:UInt = 0, port:Int = 0, localAddress:String):Void
+	public static inline function broadcast(socket:DatagramSocket, bytes:ByteArray, offset:UInt = 0, length:UInt = 0, address:String = "255.255.255.255", port:Int = 0):Void
 	{
-		// Validate parameters
+        #if (cpp || neko)
 		if (bytes == null)
 		{
 			throw new ArgumentError("Parameter bytes must be non-null");
 		}
 
-		if (port <= 0 || port > 65535)
+		if (port < 0 || port > 65535)
 		{
 			throw new RangeError("Port must be between 1 and 65535, inclusive");
 		}
@@ -372,18 +372,15 @@ class DatagramSocket extends EventDispatcher
 
 		var actualLength = (length == 0) ? bytes.length - offset : length;
 
-		#if (cpp || neko)
 		try
 		{
-			var socket = new UdpSocket();
 			socket.setBroadcast(true);
 
-			// Bind to the specific local address on a random available port (0)
 			socket.bind(new Host(localAddress), 0);
 
 			// Set up the destination broadcast address
 			var broadcastAddress = new Address();
-			broadcastAddress.host = new Host("255.255.255.255").ip;
+			broadcastAddress.host = new Host(address).ip;
 			broadcastAddress.port = port;
 
 			socket.sendTo(cast bytes, offset, actualLength, broadcastAddress);
@@ -391,10 +388,10 @@ class DatagramSocket extends EventDispatcher
 		}
 		catch (e:Dynamic)
 		{
-			throw new IOError("Failed to broadcast datagram: " + e);
+			throw new Error("Failed to broadcast datagram: " + e);
 		}
 		#else
-		throw new IOError("Broadcast not supported on this platform");
+		throw new Error("Broadcast not supported on this platform");
 		#end
 	}
 
